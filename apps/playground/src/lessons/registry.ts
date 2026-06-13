@@ -1,6 +1,7 @@
 import { EcsBasicDemo } from "@/features/ecs-basic/ecs-basic-demo";
 import { GameLoopDemo } from "@/features/game-loop/game-loop-demo";
 import { MathDemo } from "@/features/math/math-demo";
+import { CanvasRendererDemo } from "@/features/canvas-renderer/canvas-renderer-demo";
 import type { Lesson } from "./types";
 
 export const lessons: Lesson[] = [
@@ -24,6 +25,13 @@ export const lessons: Lesson[] = [
     title: "Math Primitives",
     summary: "使用 Vec2、Rect、clamp 和 lerp 表达 2D 游戏中的空间关系。",
     component: MathDemo
+  },
+  {
+    slug: "04-canvas-renderer",
+    number: 4,
+    title: "Canvas Renderer",
+    summary: "把 Transform2D 和 ShapeRenderer 组件绘制到 HTML Canvas。",
+    component: CanvasRendererDemo
   }
 ];
 
