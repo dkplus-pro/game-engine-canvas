@@ -5,6 +5,7 @@ import { CanvasRendererDemo } from "@/features/canvas-renderer/canvas-renderer-d
 import { InputDemo } from "@/features/input/input-demo";
 import { AssetsSpriteDemo } from "@/features/assets-sprite/assets-sprite-demo";
 import { TileMapDemo } from "@/features/tilemap/tilemap-demo";
+import { CollisionDemo } from "@/features/collision/collision-demo";
 import type { Lesson } from "./types";
 
 export const lessons: Lesson[] = [
@@ -56,6 +57,13 @@ export const lessons: Lesson[] = [
     title: "TileMap & Procgen",
     summary: "使用 TileMap、地牢房间生成和元胞自动机洞穴生成地图。",
     component: TileMapDemo
+  },
+  {
+    slug: "08-collision",
+    number: 8,
+    title: "Collision",
+    summary: "使用 Transform2D 和 AabbCollider 检测实体之间的矩形碰撞。",
+    component: CollisionDemo
   }
 ];
 

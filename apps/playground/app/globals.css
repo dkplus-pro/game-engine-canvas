@@ -378,6 +378,24 @@ h1 {
   background: #d7efe9;
 }
 
+.collision-box {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--slate);
+  border-radius: 8px;
+  background: rgba(51, 65, 85, 0.14);
+  color: var(--slate);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.collision-box.hit {
+  border-color: var(--amber);
+  background: rgba(180, 83, 9, 0.18);
+  color: var(--amber);
+}
+
 @media (max-width: 880px) {
   .app-shell {
     grid-template-columns: 1fr;
