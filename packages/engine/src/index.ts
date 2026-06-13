@@ -1,3 +1,5 @@
+export * from "./ecs";
+
 export interface EngineInfo {
   readonly name: string;
   readonly version: string;

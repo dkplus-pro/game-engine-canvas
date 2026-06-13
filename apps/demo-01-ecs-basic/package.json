@@ -6,7 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "test": "tsc -p tsconfig.json --noEmit"
+    "test": "next typegen && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@game-engine-canvas/engine": "workspace:*",
