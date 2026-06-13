@@ -1,5 +1,6 @@
 import { EcsBasicDemo } from "@/features/ecs-basic/ecs-basic-demo";
 import { GameLoopDemo } from "@/features/game-loop/game-loop-demo";
+import { MathDemo } from "@/features/math/math-demo";
 import type { Lesson } from "./types";
 
 export const lessons: Lesson[] = [
@@ -16,6 +17,13 @@ export const lessons: Lesson[] = [
     title: "Game Loop",
     summary: "用 Engine.step 和 deltaTime 推进 ECS 世界状态。",
     component: GameLoopDemo
+  },
+  {
+    slug: "03-math",
+    number: 3,
+    title: "Math Primitives",
+    summary: "使用 Vec2、Rect、clamp 和 lerp 表达 2D 游戏中的空间关系。",
+    component: MathDemo
   }
 ];
 

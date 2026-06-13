@@ -1,5 +1,6 @@
 export * from "./core";
 export * from "./ecs";
+export * from "./math";
 
 export interface EngineInfo {
   readonly name: string;
