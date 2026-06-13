@@ -2,6 +2,7 @@ import { EcsBasicDemo } from "@/features/ecs-basic/ecs-basic-demo";
 import { GameLoopDemo } from "@/features/game-loop/game-loop-demo";
 import { MathDemo } from "@/features/math/math-demo";
 import { CanvasRendererDemo } from "@/features/canvas-renderer/canvas-renderer-demo";
+import { InputDemo } from "@/features/input/input-demo";
 import type { Lesson } from "./types";
 
 export const lessons: Lesson[] = [
@@ -32,6 +33,13 @@ export const lessons: Lesson[] = [
     title: "Canvas Renderer",
     summary: "把 Transform2D 和 ShapeRenderer 组件绘制到 HTML Canvas。",
     component: CanvasRendererDemo
+  },
+  {
+    slug: "05-input",
+    number: 5,
+    title: "Input",
+    summary: "统一键盘和指针状态，区分 down、pressed、released。",
+    component: InputDemo
   }
 ];
 
