@@ -4,6 +4,7 @@ import { MathDemo } from "@/features/math/math-demo";
 import { CanvasRendererDemo } from "@/features/canvas-renderer/canvas-renderer-demo";
 import { InputDemo } from "@/features/input/input-demo";
 import { AssetsSpriteDemo } from "@/features/assets-sprite/assets-sprite-demo";
+import { TileMapDemo } from "@/features/tilemap/tilemap-demo";
 import type { Lesson } from "./types";
 
 export const lessons: Lesson[] = [
@@ -48,6 +49,13 @@ export const lessons: Lesson[] = [
     title: "Assets & Sprite",
     summary: "注册图片资源，并通过 SpriteRenderer 绘制精灵实体。",
     component: AssetsSpriteDemo
+  },
+  {
+    slug: "07-tilemap-procgen",
+    number: 7,
+    title: "TileMap & Procgen",
+    summary: "使用 TileMap、地牢房间生成和元胞自动机洞穴生成地图。",
+    component: TileMapDemo
   }
 ];
 

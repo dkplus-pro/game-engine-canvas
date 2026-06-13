@@ -4,6 +4,7 @@ export * from "./assets";
 export * from "./math";
 export * from "./render";
 export * from "./input";
+export * from "./tilemap";
 
 export interface EngineInfo {
   readonly name: string;
