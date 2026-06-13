@@ -6,6 +6,7 @@ export * from "./render";
 export * from "./input";
 export * from "./tilemap";
 export * from "./physics";
+export * from "./scene";
 
 export interface EngineInfo {
   readonly name: string;

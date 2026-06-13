@@ -6,6 +6,7 @@ import { InputDemo } from "@/features/input/input-demo";
 import { AssetsSpriteDemo } from "@/features/assets-sprite/assets-sprite-demo";
 import { TileMapDemo } from "@/features/tilemap/tilemap-demo";
 import { CollisionDemo } from "@/features/collision/collision-demo";
+import { SceneDemo } from "@/features/scene/scene-demo";
 import type { Lesson } from "./types";
 
 export const lessons: Lesson[] = [
@@ -64,6 +65,13 @@ export const lessons: Lesson[] = [
     title: "Collision",
     summary: "使用 Transform2D 和 AabbCollider 检测实体之间的矩形碰撞。",
     component: CollisionDemo
+  },
+  {
+    slug: "09-scene",
+    number: 9,
+    title: "Scene",
+    summary: "管理多个 Scene 的进入、退出和当前 World 更新。",
+    component: SceneDemo
   }
 ];
 

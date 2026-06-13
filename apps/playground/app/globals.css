@@ -396,6 +396,62 @@ h1 {
   color: var(--amber);
 }
 
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.segmented button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.segmented button.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.scene-stage {
+  display: grid;
+  place-items: center;
+}
+
+.scene-tile {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  width: min(320px, 80%);
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  color: #fff;
+  text-align: center;
+}
+
+.scene-tile.menu {
+  background: var(--slate);
+}
+
+.scene-tile.level {
+  background: var(--primary);
+}
+
+.scene-tile strong {
+  font-size: 24px;
+}
+
+.scene-tile span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
+
 @media (max-width: 880px) {
   .app-shell {
     grid-template-columns: 1fr;
