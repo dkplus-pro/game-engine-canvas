@@ -452,6 +452,40 @@ h1 {
   font-size: 13px;
 }
 
+.game-panel {
+  display: grid;
+  place-items: center;
+  min-height: 520px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.breakout-wrap {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+}
+
+.breakout-wrap canvas {
+  width: 100%;
+  aspect-ratio: 72 / 46;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.breakout-hud {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
+
 @media (max-width: 880px) {
   .app-shell {
     grid-template-columns: 1fr;

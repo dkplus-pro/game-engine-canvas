@@ -7,6 +7,7 @@ import { AssetsSpriteDemo } from "@/features/assets-sprite/assets-sprite-demo";
 import { TileMapDemo } from "@/features/tilemap/tilemap-demo";
 import { CollisionDemo } from "@/features/collision/collision-demo";
 import { SceneDemo } from "@/features/scene/scene-demo";
+import { BreakoutDemo } from "@/features/breakout/breakout-demo";
 import type { Lesson } from "./types";
 
 export const lessons: Lesson[] = [
@@ -72,6 +73,13 @@ export const lessons: Lesson[] = [
     title: "Scene",
     summary: "管理多个 Scene 的进入、退出和当前 World 更新。",
     component: SceneDemo
+  },
+  {
+    slug: "10-breakout",
+    number: 10,
+    title: "Breakout",
+    summary: "用已有引擎模块完成一个可玩的 2D 打砖块游戏。",
+    component: BreakoutDemo
   }
 ];
 
