@@ -3,6 +3,7 @@ import { GameLoopDemo } from "@/features/game-loop/game-loop-demo";
 import { MathDemo } from "@/features/math/math-demo";
 import { CanvasRendererDemo } from "@/features/canvas-renderer/canvas-renderer-demo";
 import { InputDemo } from "@/features/input/input-demo";
+import { AssetsSpriteDemo } from "@/features/assets-sprite/assets-sprite-demo";
 import type { Lesson } from "./types";
 
 export const lessons: Lesson[] = [
@@ -40,6 +41,13 @@ export const lessons: Lesson[] = [
     title: "Input",
     summary: "统一键盘和指针状态，区分 down、pressed、released。",
     component: InputDemo
+  },
+  {
+    slug: "06-assets-sprite",
+    number: 6,
+    title: "Assets & Sprite",
+    summary: "注册图片资源，并通过 SpriteRenderer 绘制精灵实体。",
+    component: AssetsSpriteDemo
   }
 ];
 

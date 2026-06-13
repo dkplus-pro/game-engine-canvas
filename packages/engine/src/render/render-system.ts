@@ -1,6 +1,6 @@
 import type { System } from "../ecs";
 import { CanvasRenderer } from "./canvas-renderer";
-import { ShapeRenderer, Transform2D } from "./components";
+import { ShapeRenderer, SpriteRenderer, Transform2D } from "./components";
 
 export class RenderSystem implements System {
   readonly name = "RenderSystem";
@@ -14,6 +14,13 @@ export class RenderSystem implements System {
       this.renderer.drawShape(
         result.get(Transform2D),
         result.get(ShapeRenderer)
+      );
+    }
+
+    for (const result of world.query(Transform2D, SpriteRenderer)) {
+      this.renderer.drawSprite(
+        result.get(Transform2D),
+        result.get(SpriteRenderer)
       );
     }
   }

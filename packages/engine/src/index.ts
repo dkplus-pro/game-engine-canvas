@@ -1,5 +1,6 @@
 export * from "./core";
 export * from "./ecs";
+export * from "./assets";
 export * from "./math";
 export * from "./render";
 export * from "./input";

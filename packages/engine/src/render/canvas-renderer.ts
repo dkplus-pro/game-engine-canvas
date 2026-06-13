@@ -1,10 +1,12 @@
-import type { ShapeRenderer, Transform2D } from "./components";
+import type { AssetStore } from "../assets";
+import type { ShapeRenderer, SpriteRenderer, Transform2D } from "./components";
 
 export interface CanvasRendererOptions {
   readonly context: CanvasRenderingContext2D;
   readonly width: number;
   readonly height: number;
   readonly background?: string;
+  readonly assets?: AssetStore;
 }
 
 export class CanvasRenderer {
@@ -51,6 +53,46 @@ export class CanvasRenderer {
       if (options.strokeStyle) {
         context.strokeRect(-width / 2, -height / 2, width, height);
       }
+    }
+
+    context.restore();
+  }
+
+  drawSprite(transform: Transform2D, sprite: SpriteRenderer): void {
+    const { context, assets } = this.options;
+    const image = assets?.getImage(sprite.options.imageKey);
+
+    if (!image) {
+      return;
+    }
+
+    context.save();
+    context.translate(transform.position.x, transform.position.y);
+    context.rotate(transform.rotation);
+    context.scale(transform.scale.x, transform.scale.y);
+
+    const { width, height, sourceX, sourceY, sourceWidth, sourceHeight } =
+      sprite.options;
+
+    if (
+      sourceX !== undefined &&
+      sourceY !== undefined &&
+      sourceWidth !== undefined &&
+      sourceHeight !== undefined
+    ) {
+      context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        -width / 2,
+        -height / 2,
+        width,
+        height
+      );
+    } else {
+      context.drawImage(image, -width / 2, -height / 2, width, height);
     }
 
     context.restore();

@@ -23,6 +23,10 @@ export class ShapeRenderer {
   constructor(public readonly options: ShapeRendererOptions) {}
 }
 
+export class SpriteRenderer {
+  constructor(public readonly options: SpriteRendererOptions) {}
+}
+
 export type ShapeKind = "rect" | "circle";
 
 export interface ShapeRendererOptions {
@@ -33,4 +37,14 @@ export interface ShapeRendererOptions {
   readonly fillStyle: string;
   readonly strokeStyle?: string;
   readonly lineWidth?: number;
+}
+
+export interface SpriteRendererOptions {
+  readonly imageKey: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sourceX?: number;
+  readonly sourceY?: number;
+  readonly sourceWidth?: number;
+  readonly sourceHeight?: number;
 }
