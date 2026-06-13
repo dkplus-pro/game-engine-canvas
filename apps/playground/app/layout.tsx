@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Game Loop Demo",
-  description: "Game loop demo for game-engine-canvas."
+  title: "Game Engine Canvas",
+  description: "Lessons and playable demos for a JavaScript 2D ECS engine."
 };
 
 export default function RootLayout({
