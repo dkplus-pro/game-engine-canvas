@@ -34,10 +34,7 @@ export class Engine {
       options.requestFrame ??
       globalThis.requestAnimationFrame?.bind(globalThis) ??
       ((callback) => globalThis.setTimeout(() => callback(this.now()), 1000 / 60));
-    this.cancelFrame =
-      options.cancelFrame ??
-      globalThis.cancelAnimationFrame?.bind(globalThis) ??
-      ((handle) => globalThis.clearTimeout(handle));
+    this.cancelFrame = options.cancelFrame ?? cancelEngineFrame;
     this.now = options.now ?? (() => performance.now());
   }
 
@@ -90,4 +87,13 @@ export class Engine {
     this.step(deltaTime);
     this.frameHandle = this.requestFrame(this.tick);
   };
+}
+
+function cancelEngineFrame(handle: EngineFrameHandle): void {
+  if (typeof handle === "number" && globalThis.cancelAnimationFrame) {
+    globalThis.cancelAnimationFrame(handle);
+    return;
+  }
+
+  globalThis.clearTimeout(handle);
 }
