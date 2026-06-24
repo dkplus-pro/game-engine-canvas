@@ -1,6 +1,6 @@
 import { Vec2 } from "@game-engine-canvas/engine";
 import { describe, expect, it } from "vitest";
-import { BALL_RADIUS, CUE_START, PLAY_MIN_X, pockets } from "../src/game/constants";
+import { BALL_RADIUS, CUE_START, HEAD_SPOT, PLAY_MIN_X, pockets } from "../src/game/constants";
 import { advanceBilliardsPhysics, resolveBallCollision } from "../src/game/physics";
 import { getHudSnapshot, settleShot, updateBilliards } from "../src/game/simulation";
 import { createBall, createBilliardsState, getCueBall } from "../src/game/table";
@@ -66,7 +66,7 @@ describe("billiards simulation", () => {
     expect(state.currentPlayer).toBe(2);
     expect(state.stats.fouls).toBe(1);
     expect(cue.pocketed).toBe(false);
-    expect(cue.position.distanceTo(CUE_START)).toBeLessThan(4);
+    expect(cue.position.distanceTo(HEAD_SPOT)).toBeLessThan(4);
   });
 
   it("assigns groups on the first legal object pocket and keeps the shooter", () => {
