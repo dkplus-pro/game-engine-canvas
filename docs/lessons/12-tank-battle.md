@@ -74,34 +74,43 @@ Tank Battle 可以先不用复杂物理，只使用 AABB：
 
 移动端使用屏幕按钮，不依赖浏览器默认手势。Canvas 需要根据 `devicePixelRatio` 设置实际像素尺寸，并把指针坐标映射回游戏逻辑坐标。不要直接把全屏 CSS 尺寸当作逻辑地图尺寸，否则高分屏和窗口缩放会让触控命中偏移。
 
-## 文件组织建议
+## 本仓库实际文件组织
 
 ```text
 apps/tank-battle
   app/
-    layout.tsx
-    page.tsx
-    globals.css
-  src/
-    components/
-      tank-battle-app.tsx
-      tank-battle-hud.tsx
-    game/
-      constants.ts
-      level-generator.ts
-      tank-battle-state.ts
-      tank-battle-rules.ts
-      tank-battle-renderer.ts
-      input-controller.ts
-      audio.ts
+    layout.tsx              # 页面元数据和 html/body
+    page.tsx                # 挂载客户端游戏组件
+    globals.css             # 全屏像素风 UI、HUD、触控按钮
+  public/assets/
+    tank-battle-sprites.png # Bailian 生成的像素素材 atlas
+    audio/mission-start.wav # Bailian 生成的开场语音
+  src/components/
+    tank-battle-app.tsx     # React 控制层：选关、HUD、键盘/触控、Canvas loop
+  src/game/
+    constants.ts            # 逻辑尺寸、图块、速度、方向
+    levels.ts               # 可选关卡参数
+    map-generator.ts        # seed 地图生成、基地/出生区约束
+    input.ts                # InputState -> TankCommand
+    simulation.ts           # ECS World/System + 规则推进
+    render.ts               # Canvas 绘制顺序和全屏缩放
+    assets.ts               # AssetStore + PNG/WAV 加载
+    audio.ts                # WebAudio 射击/爆炸/道具兜底音效
+    types.ts                # 规则层类型
+  test/
+    map-generator.test.ts
+    simulation.test.ts
   e2e/
     tank-battle.spec.ts
-  test/
-    level-generator.test.ts
-    tank-battle-rules.test.ts
 ```
 
-单个文件如果超过 500 行，应优先按“状态、规则、渲染、输入、音频、UI”拆分，而不是继续追加条件分支。
+单个文件如果超过 500 行，应优先按“状态、规则、渲染、输入、音频、UI”拆分，而不是继续追加条件分支。本实现中最大的规则文件 `simulation.ts` 控制在 500 行以内，方便课程逐段讲解。
+
+## 素材与音效
+
+本课使用 `bl image generate` 生成了一个原创复古像素素材图集，保存到 `apps/tank-battle/public/assets/tank-battle-sprites.png`。运行时通过 engine 的 `AssetStore` 注册为 `tank-atlas`，当前主要作为菜单/背景装饰；核心战斗单位仍使用程序化像素绘制，以确保 sprite atlas 加载失败时游戏也能正常运行。
+
+开场语音由 `bl speech synthesize` 使用 `longfei_v3` 声音生成，保存到 `apps/tank-battle/public/assets/audio/mission-start.wav`。射击、爆炸和道具提示则用 WebAudio 生成短音色，这样不依赖额外网络请求，也不会因为浏览器阻止自动播放而影响规则推进。
 
 ## 单元测试清单
 
