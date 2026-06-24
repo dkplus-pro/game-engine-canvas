@@ -281,10 +281,3 @@ select:focus-visible {
     animation-duration: 1ms !important;
   }
 }
-.tank-chip[data-tone="warning"] strong {
-  color: var(--tank-warning);
-}
-
-.tank-chip[data-tone="critical"] strong {
-  color: var(--tank-primary);
-}

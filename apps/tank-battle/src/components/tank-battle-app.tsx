@@ -1,372 +1,286 @@
 "use client";
 
-import { InputState, createEngine } from "@game-engine-canvas/engine";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  LEVEL_COUNT,
-  createInitialHudState,
-  getBaseAlert,
-  getCommandHint,
-  getStatusLabel,
-  reduceHudState,
-  type HudState
-} from "@/ui/hud-model";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createTankAudio, type TankAudio } from "@/game/audio";
+import { loadTankBattleAssets, type TankBattleAssets } from "@/game/assets";
+import { isGameplayKey } from "@/game/input";
+import { levelConfigs } from "@/game/levels";
+import { drawTankBattle } from "@/game/render";
+import { createTankBattleRuntime, createTankBattleState, getHudSnapshot } from "@/game/simulation";
+import type { HudSnapshot, TankBattleState } from "@/game/types";
 
-const assetPath = "/assets/tank-battle-sprites.png";
-const engineInfo = createEngine();
-const movementButtons = [
-  { code: "ArrowUp", label: "▲", aria: "向上移动" },
-  { code: "ArrowLeft", label: "◀", aria: "向左移动" },
-  { code: "ArrowRight", label: "▶", aria: "向右移动" },
-  { code: "ArrowDown", label: "▼", aria: "向下移动" }
-] as const;
+interface Runtime {
+  readonly input: ReturnType<typeof createTankBattleRuntime>["input"];
+  readonly state: TankBattleState;
+  readonly world: ReturnType<typeof createTankBattleRuntime>["world"];
+}
+
+const initialHud: HudSnapshot = {
+  level: 1,
+  score: 0,
+  lives: 3,
+  enemiesLeft: 0,
+  status: "paused",
+  message: "选择关卡，按 Enter 开始"
+};
 
 export function TankBattleApp() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const inputRef = useRef(new InputState());
-  const hudRef = useRef<HudState>(createInitialHudState());
-  const [hud, setHud] = useState<HudState>(() => createInitialHudState());
-  const [assetsReady, setAssetsReady] = useState(false);
+  const runtimeRef = useRef<Runtime | null>(null);
+  const previewRef = useRef(createTankBattleState(1));
+  const assetsRef = useRef<TankBattleAssets | undefined>(undefined);
+  const audioRef = useRef<TankAudio | undefined>(undefined);
+  const previousCountsRef = useRef({ bullets: 0, explosions: 0, powerUps: 0 });
+  const [selectedLevel, setSelectedLevel] = useState(1);
+  const [hud, setHud] = useState(initialHud);
+  const [hasStarted, setHasStarted] = useState(false);
 
-  useEffect(() => {
-    hudRef.current = hud;
-  }, [hud]);
+  const startLevel = useCallback(
+    (levelId = selectedLevel) => {
+      const runtime = createTankBattleRuntime(levelId);
+      runtimeRef.current = runtime;
+      previousCountsRef.current = { bullets: 0, explosions: 0, powerUps: 0 };
+      setSelectedLevel(levelId);
+      setHasStarted(true);
+      setHud(getHudSnapshot(runtime.state));
+      audioRef.current?.start();
+    },
+    [selectedLevel]
+  );
 
-  const dispatch = useCallback((action: Parameters<typeof reduceHudState>[1]) => {
-    setHud((current) => reduceHudState(current, action));
+  const togglePause = useCallback(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime || runtime.state.status === "won" || runtime.state.status === "lost") return;
+    runtime.state.status = runtime.state.status === "paused" ? "playing" : "paused";
+    runtime.state.message = runtime.state.status === "paused" ? "暂停中" : "继续战斗";
+    setHud(getHudSnapshot(runtime.state));
   }, []);
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isGameControl(event.code)) {
-        event.preventDefault();
-        inputRef.current.keyDown(event.code);
-        dispatch({ type: "key-down", code: event.code });
-      }
+    const assets = loadTankBattleAssets();
+    assetsRef.current = assets;
+    audioRef.current = createTankAudio(assets.missionAudio);
+  }, []);
 
-      if (event.code === "Enter" && hudRef.current.status === "ready") {
-        event.preventDefault();
-        dispatch({ type: "start" });
-      }
-
-      if (event.code === "KeyP" || event.code === "Escape") {
-        event.preventDefault();
-        dispatch({ type: hudRef.current.status === "paused" ? "resume" : "pause" });
-      }
-    };
-
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (isGameControl(event.code)) {
-        inputRef.current.keyUp(event.code);
-        dispatch({ type: "key-up", code: event.code });
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-    };
-  }, [dispatch]);
+  useEffect(() => {
+    if (!hasStarted) {
+      previewRef.current = createTankBattleState(selectedLevel);
+      previewRef.current.status = "paused";
+      previewRef.current.message = "选择关卡，按 Enter 开始";
+      setHud({ ...getHudSnapshot(previewRef.current), status: "paused" });
+    }
+  }, [hasStarted, selectedLevel]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
 
-    if (!canvas || !context) {
-      return;
-    }
-
-    const image = new Image();
-    let animationId = 0;
     let frame = 0;
+    let last = performance.now();
+    let lastHud = 0;
 
     const resize = () => {
       const pixelRatio = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(window.innerWidth * pixelRatio);
-      canvas.height = Math.floor(window.innerHeight * pixelRatio);
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
+      const width = Math.max(320, window.innerWidth);
+      const height = Math.max(320, window.innerHeight);
+      if (canvas.width !== Math.floor(width * pixelRatio) || canvas.height !== Math.floor(height * pixelRatio)) {
+        canvas.width = Math.floor(width * pixelRatio);
+        canvas.height = Math.floor(height * pixelRatio);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+      }
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      return { width, height };
     };
 
-    const render = () => {
-      frame += hudRef.current.status === "paused" ? 0 : 1;
-      drawBattleScreen(
-        context,
-        window.innerWidth,
-        window.innerHeight,
-        image.complete ? image : undefined,
-        hudRef.current,
-        frame
-      );
-      inputRef.current.endFrame();
-      animationId = window.requestAnimationFrame(render);
+    const loop = (time: number) => {
+      const { width, height } = resize();
+      const runtime = runtimeRef.current;
+      const state = runtime?.state ?? previewRef.current;
+
+      if (runtime) {
+        const deltaTime = Math.min((time - last) / 1000, 0.05);
+        runtime.world.update(deltaTime);
+        playEventSounds(state);
+        runtime.input.endFrame();
+      }
+
+      drawTankBattle(context, state, assetsRef.current, width, height);
+      if (time - lastHud > 120) {
+        setHud(getHudSnapshot(state));
+        lastHud = time;
+      }
+      last = time;
+      frame = requestAnimationFrame(loop);
     };
 
-    const handleImageLoad = () => {
-      setAssetsReady(true);
-    };
-
-    image.addEventListener("load", handleImageLoad);
-    image.src = assetPath;
-    if (image.complete) {
-      setAssetsReady(true);
-    }
-
-    window.addEventListener("resize", resize);
-    resize();
-    animationId = window.requestAnimationFrame(render);
-
-    return () => {
-      image.removeEventListener("load", handleImageLoad);
-      window.removeEventListener("resize", resize);
-      window.cancelAnimationFrame(animationId);
-    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
   }, []);
 
-  const alert = getBaseAlert(hud);
-  const commandHint = useMemo(() => getCommandHint(hud.activeKeys), [hud.activeKeys]);
-  const primaryLabel = hud.status === "ready" ? (assetsReady ? "准备进入" : "加载素材") : "重新开始";
-  const hudPrimaryLabel = hud.status === "ready" ? "快速开始" : "重新开始";
-  const showMenu = hud.status !== "running" || hud.showHelp;
+  useEffect(() => {
+    const keyDown = (event: KeyboardEvent) => {
+      if (isGameplayKey(event.code) || event.code.startsWith("Digit")) {
+        event.preventDefault();
+      }
+      const digit = Number(event.code.replace("Digit", ""));
+      if (digit >= 1 && digit <= levelConfigs.length && !runtimeRef.current) {
+        setSelectedLevel(digit);
+      }
+      if (event.code === "Enter" && !runtimeRef.current) startLevel(selectedLevel);
+      if (event.code === "KeyR") startLevel(selectedLevel);
+      runtimeRef.current?.input.keyDown(event.code);
+    };
+    const keyUp = (event: KeyboardEvent) => runtimeRef.current?.input.keyUp(event.code);
+
+    window.addEventListener("keydown", keyDown);
+    window.addEventListener("keyup", keyUp);
+    return () => {
+      window.removeEventListener("keydown", keyDown);
+      window.removeEventListener("keyup", keyUp);
+    };
+  }, [selectedLevel, startLevel]);
+
+  const holdKey = (code: string, down: boolean) => {
+    const input = runtimeRef.current?.input;
+    if (!input) return;
+    if (down) input.keyDown(code);
+    else input.keyUp(code);
+  };
 
   return (
-    <main className="tank-app" aria-label="坦克大战全屏游戏" data-status={hud.status}>
+    <main className="tank-app" aria-label="坦克大战全屏游戏">
       <canvas ref={canvasRef} className="tank-canvas" aria-label="坦克大战 Canvas" />
-
-      <section className="tank-hud" aria-label="战场 HUD">
-        <div className="tank-hud__cluster" aria-label="任务数值">
-          <HudChip label="生命" value={`×${hud.lives}`} />
-          <HudChip label="敌军" value={hud.enemyQueue.toString()} />
-          <HudChip label="基地" value={`${hud.baseIntegrity}%`} tone={alert} />
-          <HudChip label="分数" value={hud.score.toLocaleString("zh-CN")} />
-          <HudChip label="关卡" value={hud.level.toString()} />
-        </div>
-        <div className="tank-actions" aria-label="游戏控制">
-          <button
-            className="tank-button tank-button--primary"
-            onClick={() => dispatch({ type: hud.status === "ready" ? "start" : "restart" })}
-            type="button"
-          >
-            {hudPrimaryLabel}
-          </button>
-          <button
-            className="tank-button"
-            onClick={() => dispatch({ type: hud.status === "paused" ? "resume" : "pause" })}
-            type="button"
-          >
-            {hud.status === "paused" ? "继续" : "暂停"}
-          </button>
-          <button className="tank-button" onClick={() => dispatch({ type: "toggle-help" })} type="button">
-            {hud.showHelp ? "隐藏说明" : "显示说明"}
-          </button>
-          <button className="tank-button" onClick={() => dispatch({ type: "toggle-sound" })} type="button">
-            音效 {hud.soundEnabled ? "开" : "关"}
-          </button>
-        </div>
-      </section>
-
-      {showMenu ? (
-        <section className="tank-menu" aria-label="游戏启动菜单">
-          <p className="tank-menu__kicker">{engineInfo.name} · Fullscreen Canvas</p>
-          <h1>坦克大战 90</h1>
-          <p>
-            选择关卡后守住鹰徽基地：方向键/WASD 移动，Space 开火，P 或 Esc 暂停。砖墙、钢铁、河流和草地会在地图规则接入后使用同一 HUD 展示。
-          </p>
-          <div className="tank-levels" aria-label="选择关卡">
-            {Array.from({ length: LEVEL_COUNT }, (_, index) => index + 1).map((level) => (
-              <button
-                aria-pressed={hud.level === level}
-                className="tank-level-button"
-                key={level}
-                onClick={() => dispatch({ type: "select-level", level })}
-                type="button"
-              >
-                Level {level}
-              </button>
-            ))}
-          </div>
-          <div className="tank-menu__footer">
-            <button
-              className="tank-button tank-button--primary"
-              onClick={() => dispatch({ type: hud.status === "ready" ? "start" : "restart" })}
-              type="button"
-            >
-              {primaryLabel}
-            </button>
-            <span className="tank-chip" aria-live="polite">
-              <span>Status</span>
-              <strong>{getStatusLabel(hud.status)}</strong>
-            </span>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="tank-status" aria-live="polite">
-        {getStatusLabel(hud.status)} · 指令：{commandHint} · Level {hud.level} · {assetsReady ? "Assets Ready" : "Booting"}
-      </section>
-
-      <section className="tank-touch tank-touch--move" aria-label="移动触控">
-        <span className="blank" />
-        <TouchButton button={movementButtons[0]} dispatch={dispatch} input={inputRef.current} />
-        <span className="blank" />
-        <TouchButton button={movementButtons[1]} dispatch={dispatch} input={inputRef.current} />
-        <span className="blank" />
-        <TouchButton button={movementButtons[2]} dispatch={dispatch} input={inputRef.current} />
-        <span className="blank" />
-        <TouchButton button={movementButtons[3]} dispatch={dispatch} input={inputRef.current} />
-        <span className="blank" />
-      </section>
-      <section className="tank-touch tank-touch--fire" aria-label="开火触控">
-        <TouchButton button={{ code: "Space", label: "FIRE", aria: "发射子弹" }} dispatch={dispatch} input={inputRef.current} />
-      </section>
+      <Hud hud={hud} onPause={togglePause} onRestart={() => startLevel(selectedLevel)} />
+      {!hasStarted && (
+        <StartMenu selectedLevel={selectedLevel} onSelect={setSelectedLevel} onStart={() => startLevel(selectedLevel)} />
+      )}
+      <TouchControls onHold={holdKey} />
+      <p className="tank-status" aria-live="polite">
+        {hud.message} · 方向键/WASD 移动，Space/J 射击，P 暂停，R 重开
+      </p>
     </main>
+  );
+
+  function playEventSounds(state: TankBattleState) {
+    const previous = previousCountsRef.current;
+    if (state.bullets.length > previous.bullets) audioRef.current?.shoot();
+    if (state.explosions.length > previous.explosions) audioRef.current?.explosion();
+    if (state.powerUps.length < previous.powerUps) audioRef.current?.powerUp();
+    previousCountsRef.current = {
+      bullets: state.bullets.length,
+      explosions: state.explosions.length,
+      powerUps: state.powerUps.length
+    };
+  }
+}
+
+function Hud({ hud, onPause, onRestart }: { readonly hud: HudSnapshot; readonly onPause: () => void; readonly onRestart: () => void }) {
+  return (
+    <header className="tank-hud" aria-label="游戏状态">
+      <div className="tank-hud__cluster">
+        <HudChip label="Level" value={hud.level.toString()} />
+        <HudChip label="Score" value={hud.score.toString().padStart(5, "0")} />
+        <HudChip label="Lives" value={hud.lives.toString()} />
+        <HudChip label="Enemies" value={hud.enemiesLeft.toString()} />
+        <HudChip label="State" value={hud.status.toUpperCase()} />
+      </div>
+      <div className="tank-actions" aria-label="游戏操作">
+        <button className="tank-button" type="button" onClick={onPause}>
+          暂停/继续
+        </button>
+        <button className="tank-button" type="button" onClick={onRestart}>
+          重开
+        </button>
+      </div>
+    </header>
   );
 }
 
-function HudChip({
-  label,
-  tone = "safe",
-  value
-}: {
-  readonly label: string;
-  readonly tone?: "safe" | "warning" | "critical";
-  readonly value: string;
-}) {
+function HudChip({ label, value }: { readonly label: string; readonly value: string }) {
   return (
-    <span className="tank-chip" data-tone={tone}>
+    <span className="tank-chip">
       <span>{label}</span>
       <strong>{value}</strong>
     </span>
   );
 }
 
-function TouchButton({
-  button,
-  dispatch,
-  input
+function StartMenu({
+  selectedLevel,
+  onSelect,
+  onStart
 }: {
-  readonly button: { readonly code: string; readonly label: string; readonly aria: string };
-  readonly dispatch: (action: Parameters<typeof reduceHudState>[1]) => void;
-  readonly input: InputState;
+  readonly selectedLevel: number;
+  readonly onSelect: (level: number) => void;
+  readonly onStart: () => void;
 }) {
-  const press = () => {
-    input.keyDown(button.code);
-    dispatch({ type: "key-down", code: button.code });
-  };
-  const release = () => {
-    input.keyUp(button.code);
-    dispatch({ type: "key-up", code: button.code });
-  };
-
   return (
-    <button
-      aria-label={button.aria}
-      onPointerCancel={release}
-      onPointerDown={press}
-      onPointerLeave={release}
-      onPointerUp={release}
-      type="button"
-    >
-      {button.label}
-    </button>
+    <section className="tank-menu" aria-label="游戏启动菜单">
+      <p className="tank-menu__kicker">Game Engine Canvas Course</p>
+      <h1>坦克大战 90</h1>
+      <p>
+        选择程序化关卡，保护底部基地。墙可击毁、钢铁可被强化弹击毁、河流阻挡战车、草地遮挡视线；道具提供护盾、快速射击、修复和冻结。
+      </p>
+      <div className="tank-levels" aria-label="关卡选择">
+        {levelConfigs.map((level) => (
+          <button
+            aria-label={`关卡 ${level.id} ${level.name}`}
+            aria-pressed={selectedLevel === level.id}
+            className="tank-level-button"
+            key={level.id}
+            type="button"
+            onClick={() => onSelect(level.id)}
+          >
+            {level.id}. {level.name}
+          </button>
+        ))}
+      </div>
+      <div className="tank-menu__footer">
+        <button className="tank-button tank-button--primary" type="button" onClick={onStart}>
+          开始战斗
+        </button>
+        <span className="tank-chip">
+          <span>Assets</span>
+          <strong>Bailian PNG/WAV</strong>
+        </span>
+      </div>
+    </section>
   );
 }
 
-function isGameControl(code: string): boolean {
-  return ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyA", "KeyS", "KeyD", "Space"].includes(code);
+function TouchControls({ onHold }: { readonly onHold: (code: string, down: boolean) => void }) {
+  return (
+    <>
+      <div className="tank-touch tank-touch--move" aria-label="触控方向盘">
+        <span className="blank" />
+        <TouchButton label="上" code="ArrowUp" onHold={onHold} />
+        <span className="blank" />
+        <TouchButton label="左" code="ArrowLeft" onHold={onHold} />
+        <TouchButton label="下" code="ArrowDown" onHold={onHold} />
+        <TouchButton label="右" code="ArrowRight" onHold={onHold} />
+      </div>
+      <div className="tank-touch tank-touch--fire" aria-label="触控开火">
+        <TouchButton label="开火" code="Space" onHold={onHold} />
+      </div>
+    </>
+  );
 }
 
-function drawBattleScreen(
-  context: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  image: HTMLImageElement | undefined,
-  hud: HudState,
-  frame: number
-) {
-  context.clearRect(0, 0, width, height);
-  context.fillStyle = "#0f172a";
-  context.fillRect(0, 0, width, height);
-
-  const tile = Math.max(24, Math.floor(Math.min(width, height) / 22));
-  const cols = Math.ceil(width / tile);
-  const rows = Math.ceil(height / tile);
-
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < cols; x += 1) {
-      const seed = (x * 17 + y * 31 + hud.level * 13) % 12;
-      context.fillStyle = seed === 0 ? "#123524" : seed === 1 ? "#1f2937" : "#111827";
-      context.fillRect(x * tile, y * tile, tile - 1, tile - 1);
-
-      if (seed === 2 || seed === 4) {
-        context.fillStyle = seed === 2 ? "#92400e" : "#64748b";
-        context.fillRect(x * tile + 4, y * tile + 4, tile - 8, tile - 8);
-      }
-
-      if (seed === 7) {
-        context.fillStyle = "rgba(37, 99, 235, 0.55)";
-        context.fillRect(x * tile, y * tile + tile * 0.25, tile, tile * 0.5);
-      }
-    }
-  }
-
-  context.fillStyle = "rgba(37,99,235,0.24)";
-  context.fillRect(0, height * 0.45, width, 8);
-
-  const baseX = Math.floor(cols / 2) * tile;
-  const baseY = Math.max(tile * 4, (rows - 3) * tile);
-  drawBase(context, baseX, baseY, tile);
-
-  const playerX = baseX + Math.sin(frame / 24) * tile * 2;
-  const playerY = baseY - tile * 3;
-  drawTank(context, playerX, playerY, tile, "#22c55e", "#bbf7d0");
-
-  for (let i = 0; i < 5; i += 1) {
-    const x = ((i * 4 + hud.level) % cols) * tile + Math.cos(frame / (36 + i * 3)) * 10;
-    const y = (1 + (i % 2)) * tile + ((frame / (18 + i * 4)) % (tile * 2));
-    drawTank(context, x, y, tile, "#dc2626", "#fecaca");
-  }
-
-  if (image) {
-    const size = Math.min(96, width * 0.18, height * 0.18);
-    context.drawImage(image, 0, 0, 512, 512, Math.max(16, width - size - 24), Math.max(110, height - size - 24), size, size);
-  }
-
-  if (hud.status === "paused") {
-    context.fillStyle = "rgba(15, 23, 42, 0.62)";
-    context.fillRect(0, 0, width, height);
-    context.fillStyle = "#f8fafc";
-    context.font = "700 28px ui-monospace, SFMono-Regular, Menlo, monospace";
-    context.textAlign = "center";
-    context.fillText("PAUSED", width / 2, height / 2);
-  }
-}
-
-function drawTank(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  tile: number,
-  color: string,
-  accent: string
-) {
-  const size = tile * 0.9;
-  context.fillStyle = "#111827";
-  context.fillRect(x - size * 0.5, y - size * 0.35, size, size * 0.7);
-  context.fillStyle = color;
-  context.fillRect(x - size * 0.35, y - size * 0.5, size * 0.7, size);
-  context.fillStyle = accent;
-  context.fillRect(x - size * 0.08, y - size * 0.72, size * 0.16, size * 0.5);
-}
-
-function drawBase(context: CanvasRenderingContext2D, x: number, y: number, tile: number) {
-  context.fillStyle = "#f59e0b";
-  context.fillRect(x - tile * 0.7, y - tile * 0.6, tile * 1.4, tile * 1.2);
-  context.fillStyle = "#0f172a";
-  context.fillRect(x - tile * 0.35, y - tile * 0.25, tile * 0.7, tile * 0.5);
-  context.fillStyle = "#f8fafc";
-  context.fillRect(x - tile * 0.1, y - tile * 0.4, tile * 0.2, tile * 0.8);
+function TouchButton({ label, code, onHold }: { readonly label: string; readonly code: string; readonly onHold: (code: string, down: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        onHold(code, true);
+      }}
+      onPointerCancel={() => onHold(code, false)}
+      onPointerLeave={() => onHold(code, false)}
+      onPointerUp={() => onHold(code, false)}
+    >
+      {label}
+    </button>
+  );
 }
