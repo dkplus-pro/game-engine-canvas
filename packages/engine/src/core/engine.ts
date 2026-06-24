@@ -1,10 +1,12 @@
 import type { World } from "../ecs";
 
+type EngineFrameHandle = number | ReturnType<typeof globalThis.setTimeout>;
+
 export interface EngineOptions {
   readonly world: World;
   readonly maxDeltaTime?: number;
-  readonly requestFrame?: (callback: FrameRequestCallback) => number;
-  readonly cancelFrame?: (handle: number) => void;
+  readonly requestFrame?: (callback: FrameRequestCallback) => EngineFrameHandle;
+  readonly cancelFrame?: (handle: EngineFrameHandle) => void;
   readonly now?: () => number;
 }
 
@@ -18,11 +20,11 @@ export class Engine {
   readonly world: World;
 
   private readonly maxDeltaTime: number;
-  private readonly requestFrame: (callback: FrameRequestCallback) => number;
-  private readonly cancelFrame: (handle: number) => void;
+  private readonly requestFrame: (callback: FrameRequestCallback) => EngineFrameHandle;
+  private readonly cancelFrame: (handle: EngineFrameHandle) => void;
   private readonly now: () => number;
   private running = false;
-  private frameHandle: number | undefined;
+  private frameHandle: EngineFrameHandle | undefined;
   private lastTime: number | undefined;
 
   constructor(options: EngineOptions) {
@@ -31,8 +33,7 @@ export class Engine {
     this.requestFrame =
       options.requestFrame ??
       globalThis.requestAnimationFrame?.bind(globalThis) ??
-      ((callback) =>
-        globalThis.setTimeout(() => callback(this.now()), 1000 / 60) as number);
+      ((callback) => globalThis.setTimeout(() => callback(this.now()), 1000 / 60));
     this.cancelFrame =
       options.cancelFrame ??
       globalThis.cancelAnimationFrame?.bind(globalThis) ??
