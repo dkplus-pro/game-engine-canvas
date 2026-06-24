@@ -1,132 +1,78 @@
-# 第 13 课：全屏 Canvas 霓虹桌球
+# 第 13 课：用 Canvas 和引擎原语实现全屏桌球
 
-## 本课目标
+本课把 `packages/engine` 的基础能力组合成一个全屏 Canvas 桌球练习局。最终应用位于 `apps/billiards`，重点是：浏览器运行时、圆形物理、规则状态、HUD、无障碍按钮、Web Audio 反馈和自动化验证。
 
-用 `packages/engine` 的基础能力从零实现一个教学版 8 球桌球游戏：全屏 Canvas 负责球台和球体渲染，React DOM 负责 HUD、按钮和可访问交互，规则层负责物理、回合、犯规和胜负。
+## 1. 课程目标
 
-本课重点不是把桌球写成一个巨大的组件，而是练习“引擎原语 + 游戏层规则”的分层方式。圆形碰撞、袋口和 8 球规则都放在 `apps/billiards/src/game`，避免污染通用引擎包。
+- 使用 `World` 注册桌球规则系统，把游戏更新接入引擎帧循环。
+- 使用 `InputState` 统一键盘输入，并在 React 组件中补充 Pointer Events 拖拽蓄力。
+- 使用 `Vec2`、`Rect`、`clamp` 表达球桌坐标、球体速度、桌边限制和击球力度边界。
+- 纯 Canvas 绘制霓虹球桌、球、袋口、瞄准线和蓄力反馈，避免依赖远端素材。
+- 使用 Vitest 覆盖核心物理/规则，用 Playwright 检查全屏布局、触控尺寸和 console/pageerror 为零。
 
-## 你将实现什么
-
-- `apps/billiards`：独立 Next.js 应用，全屏 Canvas 运行桌球。
-- 16 颗球：母球、1-7 低号球、8 号球、9-15 花色球。
-- 核心交互：拖拽瞄准、松手蓄力击球、按钮/键盘快速击球、暂停、重开、全屏。
-- 桌球规则：确定性摆球、球-球碰撞、库边反弹、袋口、母球落袋犯规、分组、换手、8 号球胜负。
-- 自动化验证：Vitest 覆盖物理和规则，Playwright 覆盖页面启动、触控目标和 console/pageerror 为 0。
-
-## 分层结构
+## 2. 目录结构
 
 ```text
-apps/billiards
-  app/
-    layout.tsx          # 页面元数据
-    page.tsx            # 挂载客户端游戏
-    globals.css         # 全屏布局、霓虹 HUD、可访问 focus、移动端适配
-  src/components/
-    billiards-app.tsx   # React 控制层：Canvas loop、输入桥接、HUD、音效触发
-  src/game/
-    constants.ts        # 球台尺寸、球半径、摩擦、袋口、配色
-    types.ts            # 规则层状态和 HUD 快照
-    table.ts            # 确定性摆球、球分组、剩余球查询
-    physics.ts          # 圆形碰撞、库边反弹、摩擦、落袋
+apps/billiards/
+  app/                  # Next.js App Router 页面与全局样式
+  src/components/       # React 外壳、HUD、按钮和 Canvas 生命周期
+  src/game/             # 单一职责游戏模块
+    constants.ts        # 逻辑尺寸、球桌 Rect、袋口和力度参数
+    types.ts            # BallState、BilliardsState、HUD 类型
     input.ts            # InputState -> BilliardsCommand
-    simulation.ts       # World/System + 回合、犯规、胜负结算
-    render.ts           # Canvas 绘制和 DPR 指针映射
-    audio.ts            # WebAudio 合成音效
-  test/
-    simulation.test.ts  # 物理和规则单测
-  e2e/
-    billiards.spec.ts   # 浏览器端无 console 错误验证
+    runtime.ts          # World + 规则 System
+    rules.ts            # 开球、回合、暂停、重置、胜利判定
+    physics.ts          # 圆形碰撞、桌边反弹、落袋和母球摆放
+    render.ts           # Canvas 绘制与 DPR/坐标映射
+    audio.ts            # 用户手势后的 Web Audio 合成音效
+  test/                 # Vitest 物理/规则测试
+  e2e/                  # Playwright 前端与 console 无报错测试
 ```
 
-## 为什么复用 engine
+## 3. 运行时设计
 
-本课复用仓库通用引擎中的这些原语：
+`createBilliardsRuntime()` 创建三件事：
 
-- `World`：把桌球规则挂成每帧更新的系统，而不是散落在 React 回调里。
-- `InputState`：统一键盘和指针状态，支持 `wasKeyPressed`、`pointer.released` 等一帧事件。
-- `Vec2`：表达球位置、速度、瞄准方向和碰撞法线。
-- `clamp`：限制蓄力、库边坐标和母球重置位置。
+1. `InputState` 保存键盘状态。
+2. `BilliardsState` 保存球、回合、杆数、进球数、瞄准角度和力度。
+3. `World` 注册 `BilliardsRules` 系统，每帧读取命令并调用 `updateBilliards()`。
 
-桌球的圆形碰撞没有改 `packages/engine`，因为当前引擎通用碰撞系统以 AABB 为主。本课把更具体的桌球物理放在 game 层，既能快速交付，也保留将来把 CircleCollider 抽到引擎的空间。
+React 组件只负责浏览器生命周期：Canvas resize、DPR 缩放、Pointer Events、按钮点击、HUD 同步和音效触发。这样物理和规则可以在 Node/Vitest 中独立运行。
 
-## 物理规则
+## 4. 物理实现要点
 
-桌球每帧按以下顺序推进：
+引擎当前提供的是 AABB 碰撞系统，桌球需要圆形碰撞，所以圆形物理放在 app 层：
 
-1. 位置积分：`position += velocity * dt`。
-2. 摩擦衰减：按帧率无关的指数衰减降低速度。
-3. 库边反弹：球心越过可玩区域时夹回边界，并按恢复系数反向速度。
-4. 球-球碰撞：等质量球只交换法线方向速度分量，切线速度保持。
-5. 袋口检测：球心进入袋口半径后标记为 `pocketed`，母球落袋记录为犯规。
-6. 停球结算：所有球速度低于阈值并等待短暂稳定时间后处理回合。
+- 每帧根据速度移动球，并应用线性阻尼和滚动摩擦。
+- 用 `TABLE_RECT` 限制球心范围，撞桌边时按恢复系数反弹。
+- 两球距离小于直径时先做位置修正，再按等质量弹性碰撞交换法线速度。
+- 球心进入任一袋口半径后标记 `pocketed`；母球落袋记录 scratch，并在本杆完全停止后回到开球线附近的空位。
+- 连续 4 帧低于停止速度才结算本杆，避免临界速度导致回合抖动。
 
-关键注释应写在“为什么这样做”的边界处，例如 DPR 坐标映射、等质量冲量、浏览器音频手势限制、母球重置时避让已有球。
+这些逻辑对应 `test/simulation.test.ts` 中的回归测试：球架不重叠、力度夹紧、球碰球传递速度、桌边反弹、母球落袋换手、最后一颗球落袋获胜。
 
-## 教学版 8 球规则
+## 5. 输入与交互
 
-实现采用可测试的教学版规则：
+- 鼠标/触控：在 Canvas 上拖拽，拖拽向量决定瞄准角和力度，松手击球。
+- 键盘：`A/D` 或方向键左右调整瞄准，`W/S` 或上下方向键调力度，`Space/Enter` 击球，`P/Escape` 暂停，`R` 重开。
+- HUD 按钮：暂停/继续、重开、左右微调、轻击/中击/强击都满足至少 44px 的触控目标。
+- `aria-live` 状态文本持续播报当前提示，Canvas 和主区域都有中文标签。
 
-- 玩家 1 开球。
-- 首次合法打进低号或花色球时决定双方分组。
-- 打进己方目标球后继续出杆。
-- 未打进目标球则换手。
-- 母球落袋为犯规：母球重置到开球侧安全点，并换手。
-- 清空己方目标球后合法打进 8 号球获胜。
-- 未清空目标球就打进 8 号球，对手获胜。
+## 6. 视觉与音频
 
-这套规则足够支撑课程闭环，同时避免把真实比赛中所有争议规则一次性塞进初版。
+视觉采用暗黑 OLED 背景、红蓝主辅色、绿色强调色和毛玻璃 HUD。Canvas 内部绘制：
 
-## 输入与全屏 Canvas
+- 霓虹网格背景。
+- 渐变球桌轨道与深绿色台呢。
+- 6 个发光袋口。
+- 虚线瞄准线、幽灵球和随力度变化的球杆。
+- 径向渐变球体、色球/花球/黑八编号。
 
-Canvas 使用 CSS 铺满视口，同时按 `devicePixelRatio` 设置真实像素尺寸。指针事件不能直接使用 `clientX/clientY` 作为桌球坐标，必须经过：
+音频使用 Web Audio 合成短音效，不需要外部文件；所有调用都包在 `try/catch` 中，浏览器阻止自动播放时不会影响游戏或测试。
 
-```text
-浏览器坐标 -> canvas CSS 坐标 -> 减去球台屏幕偏移 -> 除以球台缩放 -> 逻辑球台坐标
-```
+## 7. 验证命令
 
-这一步在 `screenToTablePoint` 中完成，Playwright 负责验证页面没有滚动条，移动端按钮保持 44px 以上。
-
-## UI/UX 设计
-
-视觉方向采用 Dark OLED + 霓虹桌球厅：
-
-- 背景：深蓝黑渐变和弱网格，不干扰球台。
-- 主色：红/蓝对抗；绿色表示可继续；黄色表示 8 球和提醒。
-- HUD：DOM 毛玻璃卡片，只占边缘区域，不遮挡中心球台。
-- 可访问性：按钮有可见 focus；状态文本使用 `aria-live`；触控按钮不小于 44px。
-- 动效：只在按钮和蓄力条使用短过渡，并尊重 `prefers-reduced-motion`。
-
-## 音效策略
-
-没有依赖远端资源。`audio.ts` 使用 WebAudio 合成短音色：击球、碰撞、落袋、犯规。浏览器要求音频必须由用户手势启动，因此 `start()` 只在开始游戏、拖拽或按钮点击时恢复 `AudioContext`，不会阻塞规则推进。
-
-## 单元测试清单
-
-`apps/billiards/test/simulation.test.ts` 至少覆盖：
-
-- 确定性摆球：15 颗目标球 + 母球位置稳定。
-- 球-球碰撞：等质量圆球交换速度。
-- 库边反弹：速度反向并记录库边接触。
-- 袋口：母球落袋会记录犯规、重置母球并换手。
-- 分组：首次合法打进低号/花色后分配双方目标。
-- 换手：未打进目标球时轮到对手。
-- 8 号球：过早落袋判对手获胜。
-- 暂停：暂停状态不推进物理。
-
-## Playwright 验证清单
-
-`apps/billiards/e2e/billiards.spec.ts` 覆盖：
-
-- 打开 `/` 能看到标题、主区域和 Canvas。
-- `body` 保持 `overflow: hidden`，Canvas 全屏承载游戏。
-- 点击“开始对局”进入 AIM 状态。
-- `P` 能暂停/继续，HUD 状态更新。
-- “击球”按钮能进入 ROLLING 状态。
-- 移动端视口下开始、击球、暂停、重开按钮都不小于 44px。
-- 测试期间 `console.error` 和 `pageerror` 数组为空。
-
-## 验证命令
+桌球包的最小验证：
 
 ```bash
 pnpm --filter @game-engine-canvas/billiards test
@@ -135,11 +81,12 @@ pnpm --filter @game-engine-canvas/billiards build
 pnpm --filter @game-engine-canvas/billiards e2e
 ```
 
-团队验收时还应运行根级 `pnpm test`、`pnpm lint`、`pnpm build`，确保新增 app 不破坏现有 playground、tank-battle 和 engine。
+团队最终验证还应运行根命令：
 
-## 延伸练习
+```bash
+pnpm test
+pnpm lint
+pnpm build
+```
 
-- 增加击球点偏移和旋转，让母球产生更真实的跟杆/缩杆。
-- 把教学版规则扩展为完整 8 球规则，包括开球有效性和指定袋。
-- 为球桌增加粒子、轨迹回放和慢动作教学模式。
-- 如果多个游戏都需要圆形碰撞，再把 `CircleCollider` 和圆形 broad phase 抽回 `packages/engine`。
+Playwright 用桌球自己的 `playwright.config.ts` 启动 Next dev server，并在每个用例里收集 `console.error` 与 `pageerror`，断言错误数组为空。
