@@ -1,6 +1,6 @@
 import { InputState, World, type System } from "@game-engine-canvas/engine";
-import { createBilliardsState } from "./state";
-import { updateBilliardsRules } from "./rules";
+import { readBilliardsCommand } from "./input";
+import { createBilliardsState, updateBilliards } from "./rules";
 
 export function createBilliardsRuntime() {
   const input = new InputState();
@@ -8,7 +8,7 @@ export function createBilliardsRuntime() {
   const world = new World();
   const rulesSystem: System = {
     name: "BilliardsRules",
-    update: ({ deltaTime }) => updateBilliardsRules(state, Math.min(deltaTime, 0.05))
+    update: ({ deltaTime }) => updateBilliards(state, readBilliardsCommand(input), deltaTime)
   };
 
   world.addSystem(rulesSystem);
