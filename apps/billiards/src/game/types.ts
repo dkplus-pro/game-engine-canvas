@@ -1,54 +1,58 @@
-import type { Vec2 } from "@game-engine-canvas/engine";
+import type { Rect, Vec2 } from "@game-engine-canvas/engine";
 
-export type BallKind = "cue" | "solid" | "stripe" | "eight";
-export type GameStatus = "ready" | "aiming" | "rolling" | "paused" | "won";
 export type PlayerId = 1 | 2;
+export type BallKind = "cue" | "solid" | "stripe" | "eight";
+export type BilliardsPhase = "aiming" | "rolling" | "ended";
+export type FoulKind = "scratch" | "early-eight";
 
-export interface BallState {
+export interface Ball {
   readonly id: string;
   readonly number: number;
   readonly kind: BallKind;
-  readonly color: string;
-  readonly position: Vec2;
-  readonly velocity: Vec2;
+  position: Vec2;
+  velocity: Vec2;
   pocketed: boolean;
 }
 
-export interface ShotState {
-  angle: number;
-  power: number;
-  charging: boolean;
-  pocketedThisShot: number;
-  scratched: boolean;
+export interface Pocket {
+  readonly id: string;
+  readonly position: Vec2;
+  readonly radius: number;
 }
 
-export interface BilliardsState {
-  balls: BallState[];
-  status: GameStatus;
-  previousStatus: GameStatus;
-  currentPlayer: PlayerId;
-  shotCount: number;
-  pocketedCount: number;
-  message: string;
-  elapsedTime: number;
-  settledFrames: number;
-  shot: ShotState;
+export interface TableGeometry {
+  readonly bounds: Rect;
+  readonly playfield: Rect;
+  readonly pockets: Pocket[];
 }
 
-export interface BilliardsCommand {
-  readonly aimDelta: number;
-  readonly powerDelta: number;
-  readonly shootPressed: boolean;
-  readonly pausePressed: boolean;
-  readonly resetPressed: boolean;
+export interface ShotCommand {
+  readonly direction: Vec2;
+  readonly power: number;
+}
+
+export interface TurnStats {
+  player: PlayerId;
+  pocketedNumbers: number[];
+  scratch: boolean;
+  foul?: FoulKind;
 }
 
 export interface HudSnapshot {
-  readonly player: PlayerId;
-  readonly shots: number;
-  readonly pocketed: number;
-  readonly remaining: number;
-  readonly status: GameStatus;
-  readonly power: number;
+  readonly activePlayer: PlayerId;
+  readonly phase: BilliardsPhase;
+  readonly remainingBalls: number;
+  readonly winner?: PlayerId;
   readonly message: string;
+}
+
+export interface BilliardsState {
+  readonly table: TableGeometry;
+  readonly balls: Ball[];
+  phase: BilliardsPhase;
+  activePlayer: PlayerId;
+  winner?: PlayerId;
+  message: string;
+  shotCount: number;
+  turn: TurnStats;
 }

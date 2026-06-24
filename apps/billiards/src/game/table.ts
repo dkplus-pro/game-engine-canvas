@@ -1,99 +1,60 @@
-import { Vec2 } from "@game-engine-canvas/engine";
-import { BALL_RADIUS, CUE_START, RACK_APEX } from "./constants";
-import type { Ball, BallGroup, BallKind, BilliardsState, PlayerId } from "./types";
+import { Rect, Vec2 } from "@game-engine-canvas/engine";
+import { BALL_DIAMETER, BALL_RADIUS, POCKET_RADIUS, RAIL_SIZE, TABLE_HEIGHT, TABLE_WIDTH } from "./constants";
+import type { Pocket, TableGeometry } from "./types";
 
-const rackRows = [1, 2, 3, 4, 5] as const;
-const rackNumbers = [1, 9, 2, 10, 8, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15] as const;
+export function createTableGeometry(): TableGeometry {
+  const bounds = new Rect(0, 0, TABLE_WIDTH, TABLE_HEIGHT);
+  const playfield = new Rect(RAIL_SIZE, RAIL_SIZE, TABLE_WIDTH - RAIL_SIZE * 2, TABLE_HEIGHT - RAIL_SIZE * 2);
+  const centerX = playfield.x + playfield.width / 2;
+  const right = playfield.right;
+  const bottom = playfield.bottom;
 
-export function createBilliardsState(): BilliardsState {
   return {
-    balls: [createBall(0, CUE_START.x, CUE_START.y), ...createRackBalls()],
-    players: {
-      1: { id: 1 },
-      2: { id: 2 }
-    },
-    currentPlayer: 1,
-    status: "aiming",
-    previousStatus: "aiming",
-    message: "玩家 1 开球：拖拽蓄力，松手击球",
-    aimAngle: 0,
-    shotPower: 0,
-    stats: {
-      shots: 0,
-      collisions: 0,
-      pockets: 0,
-      fouls: 0
-    }
+    bounds,
+    playfield,
+    pockets: [
+      pocket("top-left", playfield.left, playfield.top),
+      pocket("top-middle", centerX, playfield.top - 2),
+      pocket("top-right", right, playfield.top),
+      pocket("bottom-left", playfield.left, bottom),
+      pocket("bottom-middle", centerX, bottom + 2),
+      pocket("bottom-right", right, bottom)
+    ]
   };
 }
 
-export function createRackBalls(): Ball[] {
-  const balls: Ball[] = [];
-  let index = 0;
-  const rowSpacing = BALL_RADIUS * Math.sqrt(3) + 1.2;
-  const columnSpacing = BALL_RADIUS * 2 + 1.2;
+export function createCueBallPosition(table: TableGeometry): Vec2 {
+  return new Vec2(table.playfield.left + table.playfield.width * 0.25, table.playfield.center.y);
+}
 
-  for (let rowIndex = 0; rowIndex < rackRows.length; rowIndex += 1) {
-    const rowCount = rackRows[rowIndex]!;
-    const x = RACK_APEX.x + rowIndex * rowSpacing;
-    const firstY = RACK_APEX.y - ((rowCount - 1) * columnSpacing) / 2;
-    for (let item = 0; item < rowCount; item += 1) {
-      const number = rackNumbers[index++]!;
-      balls.push(createBall(number, x, firstY + item * columnSpacing));
+export function createRackPositions(table: TableGeometry): Vec2[] {
+  const apex = new Vec2(table.playfield.left + table.playfield.width * 0.68, table.playfield.center.y);
+  const positions: Vec2[] = [];
+
+  for (let row = 0; row < 5; row += 1) {
+    for (let slot = 0; slot <= row; slot += 1) {
+      positions.push(
+        new Vec2(
+          apex.x + row * BALL_DIAMETER * 0.88,
+          apex.y + (slot - row / 2) * BALL_DIAMETER * 1.04
+        )
+      );
     }
   }
 
-  return balls;
+  return positions;
 }
 
-export function createBall(number: number, x: number, y: number): Ball {
-  return {
-    id: number === 0 ? "cue" : `ball-${number}`,
-    number,
-    kind: getBallKind(number),
-    position: new Vec2(x, y),
-    velocity: Vec2.zero(),
-    pocketed: false
-  };
+export function isBallInPocket(position: Vec2, table: TableGeometry): Pocket | undefined {
+  return table.pockets.find((pocket) => position.distanceTo(pocket.position) <= pocket.radius);
 }
 
-export function getBallKind(number: number): BallKind {
-  if (number === 0) return "cue";
-  if (number === 8) return "eight";
-  return number < 8 ? "solid" : "stripe";
+export function getCueBallSpot(table: TableGeometry): Vec2 {
+  const base = createCueBallPosition(table);
+  // Place ball fully inside the playfield after a scratch, even if table constants change.
+  return new Vec2(Math.max(base.x, table.playfield.left + BALL_RADIUS), base.y);
 }
 
-export function groupForKind(kind: BallKind): BallGroup | undefined {
-  if (kind === "solid") return "solids";
-  if (kind === "stripe") return "stripes";
-  return undefined;
-}
-
-export function otherPlayer(player: PlayerId): PlayerId {
-  return player === 1 ? 2 : 1;
-}
-
-export function otherGroup(group: BallGroup): BallGroup {
-  return group === "solids" ? "stripes" : "solids";
-}
-
-export function getCueBall(state: BilliardsState): Ball {
-  const cue = state.balls.find((ball) => ball.number === 0);
-  if (!cue) throw new Error("Billiards state is missing the cue ball");
-  return cue;
-}
-
-export function getEightBall(state: BilliardsState): Ball {
-  const eight = state.balls.find((ball) => ball.number === 8);
-  if (!eight) throw new Error("Billiards state is missing the eight ball");
-  return eight;
-}
-
-export function getRemainingByGroup(state: BilliardsState, group: BallGroup): number {
-  return state.balls.filter((ball) => !ball.pocketed && groupForKind(ball.kind) === group).length;
-}
-
-export function canLegallyPocketEight(state: BilliardsState, player: PlayerId): boolean {
-  const group = state.players[player].group;
-  return Boolean(group) && getRemainingByGroup(state, group!) === 0;
+function pocket(id: string, x: number, y: number): Pocket {
+  return { id, position: new Vec2(x, y), radius: POCKET_RADIUS };
 }
