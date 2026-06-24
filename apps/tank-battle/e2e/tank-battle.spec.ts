@@ -26,7 +26,7 @@ test.describe("tank battle app", () => {
     await expect(page.getByLabel("坦克大战 Canvas")).toBeVisible();
     await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
 
-    await page.getByRole("button", { name: "2. 河道伏击" }).click();
+    await page.getByRole("button", { name: /关卡 2/ }).click();
     await page.getByRole("button", { name: "开始战斗" }).click();
     await expect(page.getByText("PLAYING")).toBeVisible();
     await expect(page.getByText("2", { exact: true }).first()).toBeVisible();

@@ -226,6 +226,7 @@ function StartMenu({
       <div className="tank-levels" aria-label="关卡选择">
         {levelConfigs.map((level) => (
           <button
+            aria-label={`关卡 ${level.id} ${level.name}`}
             aria-pressed={selectedLevel === level.id}
             className="tank-level-button"
             key={level.id}
