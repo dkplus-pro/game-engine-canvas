@@ -8,14 +8,14 @@ export default defineConfig({
     timeout: 5_000
   },
   use: {
-    baseURL: process.env.BILLIARDS_BASE_URL ?? "http://127.0.0.1:3101",
+    baseURL: process.env.BILLIARDS_BASE_URL ?? "http://127.0.0.1:3200",
     trace: "retain-on-failure"
   },
   webServer: process.env.BILLIARDS_SKIP_WEBSERVER
     ? undefined
     : {
-        command: "pnpm --filter @game-engine-canvas/billiards exec next dev --hostname 127.0.0.1 --port 3101",
-        url: "http://127.0.0.1:3101",
+        command: "pnpm --filter @game-engine-canvas/billiards exec next dev --hostname 127.0.0.1 --port 3200",
+        url: "http://127.0.0.1:3200",
         reuseExistingServer: false,
         timeout: 120_000
       },
