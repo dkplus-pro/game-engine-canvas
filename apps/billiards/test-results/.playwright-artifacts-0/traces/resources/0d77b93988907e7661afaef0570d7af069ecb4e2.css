@@ -1,0 +1,264 @@
+/*!*****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ../../node_modules/.pnpm/next@15.5.19_@playwright+test@1.61.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!../../node_modules/.pnpm/next@15.5.19_@playwright+test@1.61.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./app/globals.css ***!
+  \*****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************/
+:root {
+  color-scheme: dark;
+  --billiards-bg: #020617;
+  --billiards-surface: rgba(8, 13, 30, 0.76);
+  --billiards-surface-strong: rgba(8, 13, 30, 0.94);
+  --billiards-line: rgba(255, 255, 255, 0.14);
+  --billiards-primary: #ef4444;
+  --billiards-secondary: #2563eb;
+  --billiards-accent: #22c55e;
+  --billiards-warning: #facc15;
+  --billiards-ink: #f8fafc;
+  --billiards-muted: rgba(248, 250, 252, 0.72);
+  --billiards-shadow: rgba(0, 0, 0, 0.46);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--billiards-bg);
+  color: var(--billiards-ink);
+  font-family: Orbitron, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+button {
+  font: inherit;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--billiards-accent);
+  outline-offset: 3px;
+}
+
+.billiards-app {
+  position: fixed;
+  inset: 0;
+  min-width: 320px;
+  min-height: 320px;
+  background:
+    radial-gradient(circle at 16% 12%, rgba(37, 99, 235, 0.3), transparent 32%),
+    radial-gradient(circle at 84% 22%, rgba(239, 68, 68, 0.22), transparent 30%),
+    radial-gradient(circle at 50% 95%, rgba(34, 197, 94, 0.2), transparent 34%),
+    linear-gradient(180deg, #030712 0%, #0b1120 54%, #020617 100%);
+}
+
+.billiards-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  touch-action: none;
+}
+
+.billiards-hud {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, env(safe-area-inset-right));
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.billiards-hud__cluster,
+.billiards-panel,
+.billiards-status,
+.billiards-help,
+.billiards-power {
+  border: 1px solid var(--billiards-line);
+  background: var(--billiards-surface);
+  box-shadow: 0 24px 56px var(--billiards-shadow);
+  -webkit-backdrop-filter: blur(16px);
+          backdrop-filter: blur(16px);
+}
+
+.billiards-hud__cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-radius: 16px;
+  padding: 8px;
+}
+
+.billiards-chip {
+  display: grid;
+  min-width: 92px;
+  grid-gap: 3px;
+  gap: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.billiards-chip span {
+  color: var(--billiards-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.billiards-chip strong {
+  color: var(--billiards-accent);
+  font-size: 16px;
+}
+
+.billiards-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  pointer-events: auto;
+}
+
+.billiards-button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--billiards-line);
+  border-radius: 12px;
+  padding: 0 14px;
+  background: rgba(15, 23, 42, 0.88);
+  color: var(--billiards-ink);
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.billiards-button:hover {
+  border-color: rgba(34, 197, 94, 0.72);
+  transform: translateY(-1px);
+}
+
+.billiards-button--primary {
+  border-color: rgba(34, 197, 94, 0.84);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(37, 99, 235, 0.86));
+  color: #02110a;
+  font-weight: 900;
+}
+
+.billiards-panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(720px, calc(100vw - 32px));
+  transform: translate(-50%, -50%);
+  display: grid;
+  grid-gap: 18px;
+  gap: 18px;
+  border-radius: 24px;
+  padding: clamp(20px, 4vw, 34px);
+  pointer-events: auto;
+}
+
+.billiards-panel__kicker {
+  margin: 0;
+  color: var(--billiards-accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.billiards-panel h1 {
+  margin: 0;
+  font-size: clamp(36px, 8vw, 76px);
+  line-height: 0.95;
+  text-shadow: 4px 4px 0 rgba(239, 68, 68, 0.5), -2px -2px 0 rgba(37, 99, 235, 0.5);
+}
+
+.billiards-panel p,
+.billiards-help,
+.billiards-status {
+  margin: 0;
+  color: var(--billiards-muted);
+  line-height: 1.7;
+}
+
+.billiards-panel__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.billiards-status {
+  position: absolute;
+  left: 50%;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(680px, calc(100vw - 32px));
+  border-radius: 16px;
+  padding: 12px 16px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.billiards-help {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  width: min(300px, calc(100vw - 32px));
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 12px;
+}
+
+.billiards-power {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  width: min(220px, calc(100vw - 32px));
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.billiards-power__bar {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.billiards-power__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--billiards-accent), var(--billiards-warning), var(--billiards-primary));
+  transition: width 120ms ease;
+}
+
+@media (max-width: 760px) {
+  .billiards-hud {
+    align-items: flex-start;
+  }
+
+  .billiards-chip {
+    min-width: 76px;
+    padding: 7px 8px;
+  }
+
+  .billiards-help {
+    display: none;
+  }
+
+  .billiards-status {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .billiards-button,
+  .billiards-power__fill {
+    transition: none;
+  }
+}
+

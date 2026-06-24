@@ -1,0 +1,3 @@
+{"type":"receive","time":1782319323604.5417,"opcode":1,"data":"{\"action\":\"sync\",\"hash\":\"0338ecb172df66bf\",\"errors\":[],\"warnings\":[],\"versionInfo\":{\"staleness\":\"stale-major\",\"expected\":\"16.2.9\",\"installed\":\"15.5.19\"},\"debug\":{},\"devIndicator\":{\"disabledUntil\":0},\"devToolsConfig\":{}}"}
+{"type":"send","time":1782319323604.5422,"opcode":1,"data":"{\"event\":\"client-success\",\"clientId\":1782319323530}"}
+{"type":"receive","time":1782319323604.547,"opcode":1,"data":"{\"action\":\"isrManifest\",\"data\":{\"/\":true}}"}
