@@ -6,7 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --config vitest.config.ts",
     "e2e": "playwright test"
   },
   "dependencies": {
