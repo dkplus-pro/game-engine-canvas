@@ -1,121 +1,164 @@
-import { Vec2, clamp } from "@game-engine-canvas/engine";
+import { Vec2, clamp, subtractVec2, type Vec2Like } from "@game-engine-canvas/engine";
 import {
+  BALL_DIAMETER,
   BALL_RADIUS,
   BALL_RESTITUTION,
   CUSHION_RESTITUTION,
-  FRICTION_PER_SECOND,
-  PLAY_MAX_X,
-  PLAY_MAX_Y,
-  PLAY_MIN_X,
-  PLAY_MIN_Y,
+  HEAD_SPOT,
+  LINEAR_FRICTION,
   POCKET_RADIUS,
+  ROLLING_FRICTION,
   STOP_SPEED,
+  TABLE_RECT,
   pockets
 } from "./constants";
-import type { Ball, BilliardsState } from "./types";
+import type { BallState, BilliardsState } from "./types";
 
-export function advanceBilliardsPhysics(state: BilliardsState, deltaTime: number): void {
-  const dt = Math.min(deltaTime, 0.05);
-  for (const ball of state.balls) {
-    if (ball.pocketed) continue;
-    integrateBall(ball, dt);
-    resolveCushions(state, ball);
+export function updatePhysics(state: BilliardsState, deltaTime: number): void {
+  const dt = Math.min(Math.max(deltaTime, 0), 0.033);
+  for (const ball of activeBalls(state)) {
+    moveBall(ball, dt);
+    resolveCushions(ball);
   }
 
-  resolveBallCollisions(state);
+  resolveBallCollisions(state.balls);
   resolvePockets(state);
+  applyStopThreshold(state.balls);
 }
 
-export function areBallsStopped(state: BilliardsState): boolean {
-  return state.balls.every((ball) => ball.pocketed || ball.velocity.length() <= STOP_SPEED);
+export function areBallsMoving(balls: readonly BallState[]): boolean {
+  return balls.some((ball) => !ball.pocketed && ball.velocity.length() > STOP_SPEED);
 }
 
-export function stopSlowBalls(state: BilliardsState): void {
-  for (const ball of state.balls) {
-    if (ball.velocity.length() <= STOP_SPEED) {
+export function activeBalls(state: BilliardsState): BallState[] {
+  return state.balls.filter((ball) => !ball.pocketed);
+}
+
+export function findCueBall(state: BilliardsState): BallState {
+  const cue = state.balls.find((ball) => ball.kind === "cue");
+  if (!cue) throw new Error("Cue ball is missing from billiards state.");
+  return cue;
+}
+
+export function placeCueBall(state: BilliardsState): void {
+  const cue = findCueBall(state);
+  cue.pocketed = false;
+  cue.position.copy(findOpenHeadSpot(state));
+  cue.velocity.set(0, 0);
+}
+
+export function distanceToNearestPocket(point: Vec2Like): number {
+  return Math.min(...pockets.map((pocket) => pocket.distanceTo(point)));
+}
+
+function moveBall(ball: BallState, dt: number): void {
+  ball.position.add(ball.velocity.clone().scale(dt));
+
+  // Two friction terms keep slow shots readable while still stopping long rolls.
+  const drag = Math.pow(LINEAR_FRICTION, dt * 60);
+  ball.velocity.scale(drag);
+  const speed = ball.velocity.length();
+  if (speed > 0) {
+    const nextSpeed = Math.max(0, speed - ROLLING_FRICTION * dt);
+    ball.velocity.scale(nextSpeed / speed);
+  }
+}
+
+function resolveCushions(ball: BallState): void {
+  const minX = TABLE_RECT.left + BALL_RADIUS;
+  const maxX = TABLE_RECT.right - BALL_RADIUS;
+  const minY = TABLE_RECT.top + BALL_RADIUS;
+  const maxY = TABLE_RECT.bottom - BALL_RADIUS;
+
+  if (ball.position.x < minX) {
+    ball.position.x = minX;
+    if (ball.velocity.x < 0) ball.velocity.x = -ball.velocity.x * CUSHION_RESTITUTION;
+  }
+  if (ball.position.x > maxX) {
+    ball.position.x = maxX;
+    if (ball.velocity.x > 0) ball.velocity.x = -ball.velocity.x * CUSHION_RESTITUTION;
+  }
+  if (ball.position.y < minY) {
+    ball.position.y = minY;
+    if (ball.velocity.y < 0) ball.velocity.y = -ball.velocity.y * CUSHION_RESTITUTION;
+  }
+  if (ball.position.y > maxY) {
+    ball.position.y = maxY;
+    if (ball.velocity.y > 0) ball.velocity.y = -ball.velocity.y * CUSHION_RESTITUTION;
+  }
+}
+
+function resolveBallCollisions(balls: readonly BallState[]): void {
+  const active = balls.filter((ball) => !ball.pocketed);
+  for (let i = 0; i < active.length; i += 1) {
+    for (let j = i + 1; j < active.length; j += 1) {
+      const a = active[i]!;
+      const b = active[j]!;
+      resolvePair(a, b);
+    }
+  }
+}
+
+function resolvePair(a: BallState, b: BallState): void {
+  const delta = subtractVec2(b.position, a.position);
+  const distance = Math.max(delta.length(), 0.0001);
+  if (distance >= BALL_DIAMETER) return;
+
+  const normal = delta.scale(1 / distance);
+  const overlap = BALL_DIAMETER - distance;
+  a.position.add(normal.clone().scale(-overlap / 2));
+  b.position.add(normal.clone().scale(overlap / 2));
+
+  const relativeVelocity = subtractVec2(a.velocity, b.velocity);
+  const speedAlongNormal = relativeVelocity.dot(normal);
+  if (speedAlongNormal <= 0) return;
+
+  const impulse = speedAlongNormal * BALL_RESTITUTION;
+  a.velocity.add(normal.clone().scale(-impulse));
+  b.velocity.add(normal.clone().scale(impulse));
+}
+
+function resolvePockets(state: BilliardsState): void {
+  for (const ball of activeBalls(state)) {
+    if (distanceToNearestPocket(ball.position) > POCKET_RADIUS) continue;
+
+    ball.pocketed = true;
+    ball.velocity.set(0, 0);
+    if (ball.kind === "cue") {
+      state.shot.scratched = true;
+      state.message = "母球落袋：本杆结束后回到开球线";
+    } else {
+      state.pocketedCount += 1;
+      state.shot.pocketedThisShot += 1;
+      state.message = `命中 ${ball.number} 号球，继续保持节奏`;
+    }
+  }
+}
+
+function applyStopThreshold(balls: readonly BallState[]): void {
+  for (const ball of balls) {
+    if (!ball.pocketed && ball.velocity.length() <= STOP_SPEED) {
       ball.velocity.set(0, 0);
     }
   }
 }
 
-export function resolveBallCollision(a: Ball, b: Ball): boolean {
-  if (a.pocketed || b.pocketed) return false;
-  const delta = Vec2.from(b.position).subtract(a.position);
-  const distance = Math.max(delta.length(), 0.0001);
-  const minDistance = BALL_RADIUS * 2;
-  if (distance >= minDistance) return false;
+function findOpenHeadSpot(state: BilliardsState): Vec2 {
+  const candidates = [
+    HEAD_SPOT,
+    new Vec2(HEAD_SPOT.x, HEAD_SPOT.y - BALL_DIAMETER * 1.4),
+    new Vec2(HEAD_SPOT.x, HEAD_SPOT.y + BALL_DIAMETER * 1.4),
+    new Vec2(HEAD_SPOT.x - BALL_DIAMETER * 1.4, HEAD_SPOT.y),
+    new Vec2(HEAD_SPOT.x + BALL_DIAMETER * 1.4, HEAD_SPOT.y)
+  ];
 
-  const normal = delta.scale(1 / distance);
-  const overlap = minDistance - distance;
-  a.position.add(Vec2.from(normal).scale(-overlap / 2));
-  b.position.add(Vec2.from(normal).scale(overlap / 2));
-
-  // Equal-mass billiards exchange only the normal velocity component. Tangential velocity remains unchanged.
-  const relativeVelocity = Vec2.from(b.velocity).subtract(a.velocity);
-  const speedAlongNormal = relativeVelocity.dot(normal);
-  if (speedAlongNormal >= 0) return true;
-
-  const impulse = (-(1 + BALL_RESTITUTION) * speedAlongNormal) / 2;
-  a.velocity.add(Vec2.from(normal).scale(-impulse));
-  b.velocity.add(Vec2.from(normal).scale(impulse));
-  return true;
+  return (
+    candidates.find((candidate) =>
+      state.balls.every((ball) => ball.kind === "cue" || ball.pocketed || ball.position.distanceTo(candidate) > BALL_DIAMETER * 1.1)
+    ) ?? HEAD_SPOT
+  ).clone();
 }
 
-function integrateBall(ball: Ball, dt: number): void {
-  ball.position.add(Vec2.from(ball.velocity).scale(dt));
-  const friction = Math.pow(FRICTION_PER_SECOND, dt * 60);
-  ball.velocity.scale(friction);
-}
-
-function resolveCushions(state: BilliardsState, ball: Ball): void {
-  const minX = PLAY_MIN_X + BALL_RADIUS;
-  const maxX = PLAY_MAX_X - BALL_RADIUS;
-  const minY = PLAY_MIN_Y + BALL_RADIUS;
-  const maxY = PLAY_MAX_Y - BALL_RADIUS;
-  let hit = false;
-
-  if (ball.position.x < minX || ball.position.x > maxX) {
-    ball.position.x = clamp(ball.position.x, minX, maxX);
-    ball.velocity.x = -ball.velocity.x * CUSHION_RESTITUTION;
-    hit = true;
-  }
-  if (ball.position.y < minY || ball.position.y > maxY) {
-    ball.position.y = clamp(ball.position.y, minY, maxY);
-    ball.velocity.y = -ball.velocity.y * CUSHION_RESTITUTION;
-    hit = true;
-  }
-
-  if (hit && state.shot) {
-    state.shot.cushionHits += 1;
-  }
-}
-
-function resolveBallCollisions(state: BilliardsState): void {
-  for (let i = 0; i < state.balls.length; i += 1) {
-    for (let j = i + 1; j < state.balls.length; j += 1) {
-      if (resolveBallCollision(state.balls[i]!, state.balls[j]!)) {
-        state.stats.collisions += 1;
-        if (state.shot) {
-          state.shot.collisions += 1;
-        }
-      }
-    }
-  }
-}
-
-function resolvePockets(state: BilliardsState): void {
-  for (const ball of state.balls) {
-    if (ball.pocketed) continue;
-    const pocket = pockets.find((item) => item.distanceTo(ball.position) <= POCKET_RADIUS);
-    if (!pocket) continue;
-
-    ball.pocketed = true;
-    ball.position.copy(pocket);
-    ball.velocity.set(0, 0);
-    state.stats.pockets += 1;
-    if (state.shot) {
-      if (ball.number === 0) state.shot.cuePocketed = true;
-      else state.shot.pocketedNumbers.push(ball.number);
-    }
-  }
+export function clampShotPower(power: number): number {
+  return clamp(power, 0, 920);
 }
