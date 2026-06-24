@@ -1,66 +1,78 @@
 "use client";
 
-import { clamp } from "@game-engine-canvas/engine";
-import { type PointerEvent, type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createBilliardsAudio, type BilliardsAudio } from "@/game/audio";
-import { isGameplayKey, initialAimPoint } from "@/game/input";
-import { drawBilliards, getBilliardsTableMetrics, screenToTablePoint } from "@/game/render";
-import { createBilliardsRuntime, getHudSnapshot, shootCueBall, updateBilliards, type BilliardsRuntime } from "@/game/simulation";
-import { createBilliardsState } from "@/game/table";
-import type { BilliardsState, HudSnapshot, TableMetrics } from "@/game/types";
+import { DEFAULT_SHOT_POWER, MAX_SHOT_POWER, MIN_SHOT_POWER } from "@/game/constants";
+import { isGameplayKey } from "@/game/input";
+import { drawBilliards, getTableMetrics, screenToLogical, type TableMetrics } from "@/game/render";
+import { aimFromPoint, createBilliardsState, getHudSnapshot, shootCueBall, togglePause } from "@/game/rules";
+import { createBilliardsRuntime } from "@/game/runtime";
+import type { BilliardsState, HudSnapshot } from "@/game/types";
 
-const initialPreview = createPreviewState();
-const initialHud = getHudSnapshot(initialPreview);
+interface Runtime {
+  readonly input: ReturnType<typeof createBilliardsRuntime>["input"];
+  readonly state: BilliardsState;
+  readonly world: ReturnType<typeof createBilliardsRuntime>["world"];
+}
+
+const initialState = createBilliardsState();
+const initialHud: HudSnapshot = getHudSnapshot(initialState);
 
 export function BilliardsApp() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const runtimeRef = useRef<BilliardsRuntime | null>(null);
-  const previewRef = useRef<BilliardsState>(initialPreview);
-  const metricsRef = useRef<TableMetrics>(getBilliardsTableMetrics(1280, 720));
+  const runtimeRef = useRef<Runtime | null>(null);
+  const previewRef = useRef(initialState);
+  const metricsRef = useRef<TableMetrics>(getTableMetrics(1200, 680));
   const audioRef = useRef<BilliardsAudio | undefined>(undefined);
-  const chargeStartedAtRef = useRef<number | undefined>(undefined);
-  const chargePowerRef = useRef(0);
-  const previousStatsRef = useRef({ shots: 0, collisions: 0, pockets: 0, fouls: 0 });
-  const [hud, setHud] = useState<HudSnapshot>(initialHud);
+  const previousEventsRef = useRef({ shots: 0, pocketed: 0, status: initialState.status });
+  const draggingRef = useRef(false);
+  const [hud, setHud] = useState(initialHud);
   const [hasStarted, setHasStarted] = useState(false);
-  const [chargePower, setChargePower] = useState(0);
+
+  const syncHud = useCallback((state: BilliardsState) => setHud(getHudSnapshot(state)), []);
 
   const startGame = useCallback(() => {
     const runtime = createBilliardsRuntime();
-    const aim = initialAimPoint(runtime.state);
-    runtime.input.pointerMove(aim.x, aim.y);
     runtimeRef.current = runtime;
-    previousStatsRef.current = { shots: 0, collisions: 0, pockets: 0, fouls: 0 };
-    chargePowerRef.current = 0;
-    chargeStartedAtRef.current = undefined;
-    setChargePower(0);
+    previousEventsRef.current = { shots: 0, pocketed: 0, status: runtime.state.status };
     setHasStarted(true);
-    setHud(getHudSnapshot(runtime.state));
+    syncHud(runtime.state);
     audioRef.current?.start();
-  }, []);
+  }, [syncHud]);
 
-  const restartGame = useCallback(() => startGame(), [startGame]);
+  const restartGame = useCallback(() => {
+    startGame();
+  }, [startGame]);
 
-  const togglePause = useCallback(() => {
+  const pauseGame = useCallback(() => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
-    updateBilliards(runtime.state, { pausePressed: true }, 0);
-    setHud(getHudSnapshot(runtime.state));
-  }, []);
+    togglePause(runtime.state);
+    syncHud(runtime.state);
+  }, [syncHud]);
 
-  const quickShot = useCallback(() => {
-    const runtime = runtimeRef.current;
-    if (!runtime || runtime.state.status !== "aiming") return;
-    audioRef.current?.start();
-    shootCueBall(runtime.state, runtime.state.aimAngle, 0.62);
-    setHud(getHudSnapshot(runtime.state));
-  }, []);
+  const shootPreset = useCallback(
+    (power: number) => {
+      const runtime = runtimeRef.current;
+      if (!runtime) return;
+      if (shootCueBall(runtime.state, runtime.state.shot.angle, power)) {
+        audioRef.current?.cue();
+        syncHud(runtime.state);
+      }
+    },
+    [syncHud]
+  );
 
-  const enterFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      void document.documentElement.requestFullscreen?.();
-    }
-  }, []);
+  const adjustAim = useCallback(
+    (delta: number) => {
+      const runtime = runtimeRef.current;
+      if (!runtime || runtime.state.status === "rolling") return;
+      runtime.state.shot.angle += delta;
+      runtime.state.message = delta < 0 ? "向左微调瞄准线" : "向右微调瞄准线";
+      syncHud(runtime.state);
+    },
+    [syncHud]
+  );
 
   useEffect(() => {
     audioRef.current = createBilliardsAudio();
@@ -79,11 +91,11 @@ export function BilliardsApp() {
       const pixelRatio = window.devicePixelRatio || 1;
       const width = Math.max(320, window.innerWidth);
       const height = Math.max(320, window.innerHeight);
-      const targetWidth = Math.floor(width * pixelRatio);
-      const targetHeight = Math.floor(height * pixelRatio);
-      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
+      const nextWidth = Math.floor(width * pixelRatio);
+      const nextHeight = Math.floor(height * pixelRatio);
+      if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+        canvas.width = nextWidth;
+        canvas.height = nextHeight;
         canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`;
       }
@@ -95,18 +107,17 @@ export function BilliardsApp() {
       const { width, height } = resize();
       const runtime = runtimeRef.current;
       const state = runtime?.state ?? previewRef.current;
-      const deltaTime = Math.min((time - last) / 1000, 0.05);
 
       if (runtime) {
-        updateChargePower(runtime.state, time);
+        const deltaTime = Math.min((time - last) / 1000, 0.05);
         runtime.world.update(deltaTime);
-        playEventSounds(runtime.state);
+        playEventSounds(state);
         runtime.input.endFrame();
       }
 
       metricsRef.current = drawBilliards(context, state, width, height);
       if (time - lastHud > 120) {
-        setHud(getHudSnapshot(state));
+        syncHud(state);
         lastHud = time;
       }
       last = time;
@@ -115,12 +126,12 @@ export function BilliardsApp() {
 
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [syncHud]);
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
       if (isGameplayKey(event.code)) event.preventDefault();
-      if (!runtimeRef.current && (event.code === "Enter" || event.code === "Space")) {
+      if (!runtimeRef.current && event.code === "Enter") {
         startGame();
         return;
       }
@@ -140,120 +151,98 @@ export function BilliardsApp() {
     };
   }, [restartGame, startGame]);
 
-  const handlePointer = (event: PointerEvent<HTMLCanvasElement>, phase: "down" | "move" | "up") => {
-    const runtime = runtimeRef.current;
-    const canvas = canvasRef.current;
-    if (!runtime || !canvas) return;
-    const point = screenToTablePoint(event.clientX, event.clientY, canvas, metricsRef.current);
-
-    if (phase === "down") {
-      event.currentTarget.setPointerCapture(event.pointerId);
-      audioRef.current?.start();
-      runtime.input.pointerDown(point.x, point.y);
-      chargeStartedAtRef.current = performance.now();
-      return;
-    }
-    if (phase === "up") {
-      runtime.releasedPower = Math.max(chargePowerRef.current, 0.18);
-      runtime.input.pointerUp(point.x, point.y);
-      chargeStartedAtRef.current = undefined;
-      chargePowerRef.current = 0;
-      setChargePower(0);
-      return;
-    }
-    runtime.input.pointerMove(point.x, point.y);
+  const logicalPointFromEvent = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return screenToLogical(metricsRef.current, {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    });
   };
 
-  const powerStyle = { "--shot-power": chargePower.toFixed(3) } as CSSProperties;
+  const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    event.preventDefault();
+    event.currentTarget.focus();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingRef.current = true;
+    aimFromPoint(runtime.state, logicalPointFromEvent(event));
+    syncHud(runtime.state);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const runtime = runtimeRef.current;
+    if (!runtime || !draggingRef.current) return;
+    event.preventDefault();
+    aimFromPoint(runtime.state, logicalPointFromEvent(event));
+    syncHud(runtime.state);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const runtime = runtimeRef.current;
+    if (!runtime || !draggingRef.current) return;
+    event.preventDefault();
+    draggingRef.current = false;
+    if (shootCueBall(runtime.state)) audioRef.current?.cue();
+    syncHud(runtime.state);
+  };
 
   return (
     <main className="billiards-app" aria-label="霓虹桌球全屏游戏">
       <canvas
         ref={canvasRef}
+        aria-label="桌球 Canvas"
         className="billiards-canvas"
-        aria-label="霓虹桌球 Canvas"
-        onPointerDown={(event) => handlePointer(event, "down")}
-        onPointerMove={(event) => handlePointer(event, "move")}
-        onPointerUp={(event) => handlePointer(event, "up")}
-        onPointerCancel={(event) => handlePointer(event, "up")}
+        role="application"
+        tabIndex={0}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerCancel={() => {
+          draggingRef.current = false;
+        }}
+        onPointerUp={handlePointerUp}
       />
-      <Hud hud={hud} onFullscreen={enterFullscreen} onPause={togglePause} onRestart={restartGame} onShot={quickShot} />
-      {!hasStarted && <StartMenu onStart={startGame} />}
-      <div className="billiards-power" style={powerStyle} aria-hidden="true">
-        <span>拖拽蓄力</span>
-        <span className="billiards-power__track">
-          <span className="billiards-power__fill" />
-        </span>
-      </div>
-      <p className="billiards-help">操作：拖拽母球方向线蓄力，松手击球；Space/J 快速击球，P 暂停，R 重开。Canvas 使用 DPR 映射避免高分屏偏移。</p>
+      <Hud hud={hud} onPause={pauseGame} onRestart={restartGame} />
+      {!hasStarted && <StartPanel onStart={startGame} />}
+      {hasStarted && <PowerPanel hud={hud} onAim={adjustAim} onShoot={shootPreset} />}
       <p className="billiards-status" aria-live="polite">
-        {hud.message}
+        {hud.message} · 鼠标/触控拖拽母球蓄力，A/D 或 ←/→ 瞄准，W/S 调整力度，Space 击球，P 暂停，R 重开
       </p>
+      <aside className="billiards-help" aria-label="操作提示">
+        规则简化为练习赛：进球可连杆，空杆或母球落袋换手；清完 15 颗目标球获胜。Canvas 会按 DPR 缩放，HUD 保持可访问按钮。
+      </aside>
     </main>
   );
 
-  function updateChargePower(state: BilliardsState, time: number) {
-    if (state.status !== "aiming" || chargeStartedAtRef.current === undefined) {
-      if (chargePowerRef.current !== 0) {
-        chargePowerRef.current = 0;
-        state.shotPower = 0;
-        setChargePower(0);
-      }
-      return;
-    }
-    const elapsed = time - chargeStartedAtRef.current;
-    const nextPower = clamp(elapsed / 1250, 0.08, 1);
-    chargePowerRef.current = nextPower;
-    state.shotPower = nextPower;
-    setChargePower(nextPower);
-  }
-
   function playEventSounds(state: BilliardsState) {
-    const previous = previousStatsRef.current;
-    if (state.stats.shots > previous.shots) audioRef.current?.shot();
-    if (state.stats.pockets > previous.pockets) audioRef.current?.pocket();
-    if (state.stats.fouls > previous.fouls) audioRef.current?.foul();
-    else if (state.stats.collisions > previous.collisions) audioRef.current?.collision();
-    previousStatsRef.current = { ...state.stats };
+    const previous = previousEventsRef.current;
+    if (state.shotCount > previous.shots) audioRef.current?.cue();
+    if (state.pocketedCount > previous.pocketed) audioRef.current?.pocket();
+    if (state.status === "won" && previous.status !== "won") audioRef.current?.win();
+    previousEventsRef.current = {
+      shots: state.shotCount,
+      pocketed: state.pocketedCount,
+      status: state.status
+    };
   }
 }
 
-function Hud({
-  hud,
-  onFullscreen,
-  onPause,
-  onRestart,
-  onShot
-}: {
-  readonly hud: HudSnapshot;
-  readonly onFullscreen: () => void;
-  readonly onPause: () => void;
-  readonly onRestart: () => void;
-  readonly onShot: () => void;
-}) {
+function Hud({ hud, onPause, onRestart }: { readonly hud: HudSnapshot; readonly onPause: () => void; readonly onRestart: () => void }) {
   return (
     <header className="billiards-hud" aria-label="游戏状态">
       <div className="billiards-hud__cluster">
-        <HudChip label="Turn" value={`P${hud.currentPlayer}`} />
-        <HudChip label="State" value={hud.stateLabel} />
-        <HudChip label="P1" value={hud.playerOneGroup} />
-        <HudChip label="P2" value={hud.playerTwoGroup} />
-        <HudChip label="Solids" value={String(hud.solidsLeft)} />
-        <HudChip label="Stripes" value={String(hud.stripesLeft)} />
+        <HudChip label="Player" value={`P${hud.player}`} />
         <HudChip label="Shots" value={String(hud.shots)} />
+        <HudChip label="Pocketed" value={`${hud.pocketed}/15`} />
+        <HudChip label="Left" value={String(hud.remaining)} />
+        <HudChip label="State" value={hud.status.toUpperCase()} />
       </div>
       <div className="billiards-actions" aria-label="游戏操作">
-        <button className="billiards-shot-button" type="button" onClick={onShot}>
-          击球
-        </button>
         <button className="billiards-button" type="button" onClick={onPause}>
           暂停/继续
         </button>
         <button className="billiards-button" type="button" onClick={onRestart}>
           重开
-        </button>
-        <button className="billiards-button" type="button" onClick={onFullscreen}>
-          全屏
         </button>
       </div>
     </header>
@@ -269,32 +258,58 @@ function HudChip({ label, value }: { readonly label: string; readonly value: str
   );
 }
 
-function StartMenu({ onStart }: { readonly onStart: () => void }) {
+function StartPanel({ onStart }: { readonly onStart: () => void }) {
   return (
-    <section className="billiards-menu" aria-label="游戏启动菜单">
-      <p className="billiards-menu__kicker">Game Engine Canvas Course</p>
+    <section className="billiards-panel" aria-label="游戏启动菜单">
+      <p className="billiards-panel__kicker">Game Engine Canvas Course</p>
       <h1>霓虹桌球</h1>
       <p>
-        使用仓库内 `World`、`InputState`、`Vec2` 与 `clamp` 从零实现的全屏 Canvas 桌球。纯 Canvas 绘制球台和球体，WebAudio 合成击球、碰撞、落袋和犯规音效。
+        一个全屏 Canvas 桌球练习局：使用引擎 World/InputState 驱动帧更新，用 Vec2/Rect/clamp 支撑桌面坐标、碰撞和力度边界。
       </p>
-      <p>规则采用教学版 8 球：先打进的低号/花色决定分组，犯规换手，清空己方目标球后合法打进 8 号球获胜。</p>
-      <div className="billiards-menu__footer">
+      <div className="billiards-panel__footer">
         <button className="billiards-button billiards-button--primary" type="button" onClick={onStart}>
-          开始对局
+          开始开球
         </button>
         <span className="billiards-chip">
-          <span>Verify</span>
-          <strong>Vitest + Playwright</strong>
+          <span>Mode</span>
+          <strong>Canvas + Web Audio</strong>
         </span>
       </div>
     </section>
   );
 }
 
-function createPreviewState(): BilliardsState {
-  const state = createBilliardsState();
-  state.status = "paused";
-  state.previousStatus = "aiming";
-  state.message = "点击开始对局，或按 Enter 开始";
-  return state;
+function PowerPanel({
+  hud,
+  onAim,
+  onShoot
+}: {
+  readonly hud: HudSnapshot;
+  readonly onAim: (delta: number) => void;
+  readonly onShoot: (power: number) => void;
+}) {
+  return (
+    <section className="billiards-power" aria-label="击球控制">
+      <div className="billiards-power__bar" aria-label={`当前力度 ${hud.power}%`}>
+        <span className="billiards-power__fill" style={{ width: `${hud.power}%` }} />
+      </div>
+      <div className="billiards-actions" style={{ marginTop: 10 }}>
+        <button className="billiards-button" type="button" aria-label="向左瞄准" onClick={() => onAim(-0.12)}>
+          ←
+        </button>
+        <button className="billiards-button" type="button" aria-label="向右瞄准" onClick={() => onAim(0.12)}>
+          →
+        </button>
+        <button className="billiards-button" type="button" onClick={() => onShoot(MIN_SHOT_POWER)}>
+          轻击
+        </button>
+        <button className="billiards-button" type="button" onClick={() => onShoot(DEFAULT_SHOT_POWER)}>
+          中击
+        </button>
+        <button className="billiards-button billiards-button--primary" type="button" onClick={() => onShoot(MAX_SHOT_POWER)}>
+          强击
+        </button>
+      </div>
+    </section>
+  );
 }
