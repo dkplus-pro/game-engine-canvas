@@ -1,13 +1,19 @@
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import type { Metadata } from "next";
-import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "霓虹桌球 | Game Engine Canvas",
-  description: "使用 packages/engine 构建的全屏 Canvas 桌球课程项目。"
+  description: "基于 @game-engine-canvas/engine 的全屏 Canvas 桌球练习。"
 };
 
-export default function RootLayout({ children }: { readonly children: ReactNode }) {
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#020617"
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
       <body>{children}</body>
