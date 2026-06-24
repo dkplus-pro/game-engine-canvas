@@ -150,6 +150,54 @@ pnpm --filter @game-engine-canvas/billiards e2e
 pnpm --filter @game-engine-canvas/billiards exec next dev --hostname 127.0.0.1 --port 3200
 ```
 
+## Playwright 草案与选择器契约
+
+如果 `apps/billiards` 尚未落地，可以先用以下草案作为实现契约。实现侧应提供稳定的可访问名称或 `data-testid`，避免 e2e 依赖易变文案和 Canvas 像素：
+
+```ts
+import { expect, test, type Page } from "@playwright/test";
+
+function collectPageErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  return errors;
+}
+
+test("starts billiards game without browser errors", async ({ page }) => {
+  const errors = collectPageErrors(page);
+  await page.goto("/");
+
+  await expect(page.getByRole("main", { name: "霓虹桌球全屏游戏" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "霓虹桌球" })).toBeVisible();
+  await expect(page.getByTestId("billiards-canvas")).toBeVisible();
+  await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
+
+  await page.getByRole("button", { name: "开始游戏" }).click();
+  await expect(page.getByTestId("billiards-status")).toContainText(/瞄准|等待|运动/);
+
+  const canvas = page.getByTestId("billiards-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Canvas bounding box is unavailable.");
+  await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.5);
+  await page.mouse.up();
+
+  expect(errors).toEqual([]);
+});
+```
+
+建议实现侧至少暴露这些稳定契约：
+
+- `data-testid="billiards-canvas"`：主 Canvas。
+- `data-testid="billiards-status"`：当前状态，如瞄准、运动、等待下一杆、暂停。
+- `data-testid="billiards-power"`：蓄力值或进度条。
+- 主容器使用 `role="main"` 和名称“霓虹桌球全屏游戏”。
+- 主要按钮使用可访问名称：“开始游戏”“暂停游戏”“继续游戏”“重置球局”。
+
 ## QA 审查清单
 
 合并前至少完成以下审查：
