@@ -24,10 +24,9 @@ test.describe("billiards app", () => {
     await expect(page.getByLabel("桌球 Canvas")).toBeVisible();
     await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
 
-    await page.getByRole("button", { name: "开始开球" }).click();
-    await expect(page.getByText("READY")).toBeVisible();
-    await page.getByRole("button", { name: "强击" }).click();
-    await expect(page.getByText("ROLLING")).toBeVisible();
+    await page.getByRole("button", { name: "开始对局" }).click();
+    await expect(page.getByText("AIM")).toBeVisible();
+    await expect(page.locator(".billiards-chip strong").filter({ hasText: /^P1$/ })).toBeVisible();
 
     await page.keyboard.press("KeyP");
     await expect(page.getByText("PAUSED")).toBeVisible();
