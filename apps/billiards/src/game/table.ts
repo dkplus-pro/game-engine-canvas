@@ -1,60 +1,47 @@
-import { Rect, Vec2 } from "@game-engine-canvas/engine";
-import { BALL_DIAMETER, BALL_RADIUS, POCKET_RADIUS, RAIL_SIZE, TABLE_HEIGHT, TABLE_WIDTH } from "./constants";
-import type { Pocket, TableGeometry } from "./types";
+import { Rect, Vec2, type Vec2Like } from "@game-engine-canvas/engine";
+import { BALL_DIAMETER, BALL_RADIUS, FOOT_SPOT, HEAD_SPOT, POCKET_RADIUS, TABLE_RECT, pockets } from "./constants";
 
+export interface Pocket {
+  readonly id: string;
+  readonly position: Vec2;
+  readonly radius: number;
+}
+
+export interface TableGeometry {
+  readonly bounds: Rect;
+  readonly playfield: Rect;
+  readonly pockets: Pocket[];
+}
+
+/** 桌面几何来自当前 Canvas 坐标常量，供课程和测试复用。 */
 export function createTableGeometry(): TableGeometry {
-  const bounds = new Rect(0, 0, TABLE_WIDTH, TABLE_HEIGHT);
-  const playfield = new Rect(RAIL_SIZE, RAIL_SIZE, TABLE_WIDTH - RAIL_SIZE * 2, TABLE_HEIGHT - RAIL_SIZE * 2);
-  const centerX = playfield.x + playfield.width / 2;
-  const right = playfield.right;
-  const bottom = playfield.bottom;
-
   return {
-    bounds,
-    playfield,
-    pockets: [
-      pocket("top-left", playfield.left, playfield.top),
-      pocket("top-middle", centerX, playfield.top - 2),
-      pocket("top-right", right, playfield.top),
-      pocket("bottom-left", playfield.left, bottom),
-      pocket("bottom-middle", centerX, bottom + 2),
-      pocket("bottom-right", right, bottom)
-    ]
+    bounds: new Rect(0, 0, TABLE_RECT.width + TABLE_RECT.x * 2, TABLE_RECT.height + TABLE_RECT.y * 2),
+    playfield: TABLE_RECT,
+    pockets: pockets.map((position, index) => ({ id: `pocket-${index + 1}`, position: position.clone(), radius: POCKET_RADIUS }))
   };
 }
 
-export function createCueBallPosition(table: TableGeometry): Vec2 {
-  return new Vec2(table.playfield.left + table.playfield.width * 0.25, table.playfield.center.y);
+export function createCueBallPosition(): Vec2 {
+  return HEAD_SPOT.clone();
 }
 
-export function createRackPositions(table: TableGeometry): Vec2[] {
-  const apex = new Vec2(table.playfield.left + table.playfield.width * 0.68, table.playfield.center.y);
+export function createRackPositions(): Vec2[] {
   const positions: Vec2[] = [];
-
   for (let row = 0; row < 5; row += 1) {
+    const x = FOOT_SPOT.x + row * BALL_DIAMETER * 0.88;
+    const rowStartY = FOOT_SPOT.y - (row * BALL_DIAMETER) / 2;
     for (let slot = 0; slot <= row; slot += 1) {
-      positions.push(
-        new Vec2(
-          apex.x + row * BALL_DIAMETER * 0.88,
-          apex.y + (slot - row / 2) * BALL_DIAMETER * 1.04
-        )
-      );
+      positions.push(new Vec2(x, rowStartY + slot * BALL_DIAMETER));
     }
   }
-
   return positions;
 }
 
-export function isBallInPocket(position: Vec2, table: TableGeometry): Pocket | undefined {
-  return table.pockets.find((pocket) => position.distanceTo(pocket.position) <= pocket.radius);
+export function isBallInPocket(position: Vec2Like): Pocket | undefined {
+  return createTableGeometry().pockets.find((pocket) => pocket.position.distanceTo(position) <= pocket.radius);
 }
 
-export function getCueBallSpot(table: TableGeometry): Vec2 {
-  const base = createCueBallPosition(table);
-  // Place ball fully inside the playfield after a scratch, even if table constants change.
-  return new Vec2(Math.max(base.x, table.playfield.left + BALL_RADIUS), base.y);
-}
-
-function pocket(id: string, x: number, y: number): Pocket {
-  return { id, position: new Vec2(x, y), radius: POCKET_RADIUS };
+export function getCueBallSpot(): Vec2 {
+  return new Vec2(Math.max(HEAD_SPOT.x, TABLE_RECT.left + BALL_RADIUS), HEAD_SPOT.y);
 }
