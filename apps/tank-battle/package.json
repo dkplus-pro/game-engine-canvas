@@ -1,0 +1,25 @@
+{
+  "name": "@game-engine-canvas/tank-battle",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@game-engine-canvas/engine": "workspace:*",
+    "next": "^15.3.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.1",
+    "@types/node": "^24.0.4",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "vitest": "^3.2.2"
+  }
+}
