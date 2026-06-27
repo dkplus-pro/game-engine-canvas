@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { withGithubPages } from "../../scripts/next-pages-config.mjs";
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -7,4 +8,4 @@ const nextConfig = {
   transpilePackages: ["@game-engine-canvas/engine"]
 };
 
-export default nextConfig;
+export default withGithubPages("billiards", nextConfig);

@@ -3,7 +3,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "env": ["GITHUB_PAGES", "GITHUB_PAGES_BASE_PATH", "GITHUB_PAGES_REPOSITORY"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "out/**"]
     },
     "dev": {
       "cache": false,

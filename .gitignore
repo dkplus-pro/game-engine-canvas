@@ -3,6 +3,7 @@ node_modules
 dist
 .next
 out
+pages-dist
 coverage
 *.tsbuildinfo
 .env
